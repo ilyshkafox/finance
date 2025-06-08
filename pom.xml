@@ -14,6 +14,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>finance</name>
     <modules>
+        <module>libs</module>
         <module>clients</module>
     </modules>
 

@@ -82,7 +82,7 @@ public class VtbSeleniumClient implements AutoCloseable {
     }
 
 
-    private State getState() {
+    public State getState() {
         switch (driver.getCurrentUrl()) {
             case "https://online.vtb.ru/login":
                 String mainText = driver.findElement(By.tagName("main")).getText();
@@ -107,18 +107,23 @@ public class VtbSeleniumClient implements AutoCloseable {
     }
 
 
-
     @Override
     public void close() throws Exception {
         driver.quit();
         driver.close();
     }
 
-    public void checkActivity(){
-        WebElement masterElement = driver.findElement(By.xpath("//p[starts-with(.,'Мастер-счет в рублях')]/../../../../.."));
-
+    @SneakyThrows
+    public void checkActivity() {
+        log.info("Проверка на прерывание активности ");
+        try {
+            driver.findElement(By.xpath("//p[starts-with(.,'Продолжить работу')]"))
+                    .click();
+            Thread.sleep(1000);
+            log.info("Прожали 'Продолжить работу'");
+        } catch (Exception ignore) {
+        }
     }
-
 
 
     @SneakyThrows
@@ -146,7 +151,7 @@ public class VtbSeleniumClient implements AutoCloseable {
         }
         List<Wallet> wallets = new ArrayList<>();
 
-        WebElement masterElement = driver.findElement(By.xpath("//p[starts-with(.,'Мастер-счет в рублях')]/../../../../.."));
+        WebElement masterElement = driver.findElement(By.xpath("//p[equals(.,'Мастер-счет в рублях')]/../../../../.."));
         String masterId = masterElement.getDomAttribute("data-id");
         WebElement element = masterElement.findElement(By.xpath("div/div[1]"));
         String masterName = element.findElement(By.xpath("div[2]/div/p[1]")).getText();
@@ -161,10 +166,10 @@ public class VtbSeleniumClient implements AutoCloseable {
                 .build()
         );
 
-        List<WebElement> savings = driver.findElements(By.xpath("//p[starts-with(.,'Открыть счет или вклад')]/../../../div[1]/button"));
+        List<WebElement> savings = driver.findElements(By.xpath("//p[equals(.,'Открыть счет или вклад')]/../../../div[1]/button"));
         savings.forEach(saving -> wallets.add(getDataWallet(WalletType.SAVING, saving)));
 
-        List<WebElement> credits = driver.findElements(By.xpath("//p[starts-with(.,'Выбрать кредит')]/../../../div[1]/button"));
+        List<WebElement> credits = driver.findElements(By.xpath("//p[equals(.,'Выбрать кредит')]/../../../div[1]/button"));
         credits.forEach(credit -> wallets.add(getDataWallet(WalletType.CREDIT, credit)));
         return wallets;
     }
