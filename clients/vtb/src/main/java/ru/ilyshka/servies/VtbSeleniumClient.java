@@ -117,7 +117,7 @@ public class VtbSeleniumClient implements AutoCloseable {
     public void checkActivity() {
         log.info("Проверка на прерывание активности ");
         try {
-            driver.findElement(By.xpath("//p[starts-with(.,'Продолжить работу')]"))
+            driver.findElement(By.xpath("//button[equals(.,'Продолжить работу')]"))
                     .click();
             Thread.sleep(1000);
             log.info("Прожали 'Продолжить работу'");
