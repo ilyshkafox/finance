@@ -6,11 +6,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import ru.ilyshka.dto.AccessCodeRequest;
 import ru.ilyshka.dto.SmsCodeRequest;
 import ru.ilyshka.servies.VtbSeleniumClient;
+import ru.ilyshka.servies.VtbService;
 
 @RequiredArgsConstructor
 @org.springframework.web.bind.annotation.RestController
 public class RestController {
     private final VtbSeleniumClient client;
+    private final VtbService service;
 
     @PostMapping("/api/sms")
     public void smsCode(@RequestBody SmsCodeRequest smsCodeRequest) {
@@ -23,7 +25,7 @@ public class RestController {
     }
 
     @PostMapping("/api/action")
-    public void accessCode() {
-        client.startActions();
+    public void action() {
+        service.startActions();
     }
 }

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ru.ilyshka</groupId>
-        <artifactId>finance</artifactId>
+        <artifactId>finance-clients</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 

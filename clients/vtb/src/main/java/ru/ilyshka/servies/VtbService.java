@@ -4,8 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.libs.messages.FinanceEventService;
 import ru.ilyshka.libs.messages.dto.HealthCheckMessage;
+
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -25,15 +30,31 @@ public class VtbService {
         log.info("Checking activity...");
         client.checkActivity();
         try {
-            switch (client.getState()) {
-                case PAGE_HOME, PAGE_HISTORY, PAGE_TRANSFERS -> eventService.pushHatchCheck(HealthCheckMessage.Status.OK, "OK");
-                default -> eventService.pushHatchCheck(HealthCheckMessage.Status.WARNING, "Возможно не пройдена авторизация");
+            if (client.getState().isAuth()) {
+                eventService.pushHatchCheck(HealthCheckMessage.Status.OK, "OK");
+            } else {
+                eventService.pushHatchCheck(HealthCheckMessage.Status.WARNING, "Требуеться авторизация");
             }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             eventService.pushHatchCheck(HealthCheckMessage.Status.ERROR, e.getMessage());
         }
     }
+
+    @Scheduled(cron = "${app.action-cron}")
+    public void startActions() {
+        List<Wallet> wallets = client.getWallets();
+        wallets.forEach(wallet -> log.info("{}", wallet));
+
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime startOfDay = OffsetDateTime.of(
+                now.toLocalDate(),
+                LocalTime.of(0, 0, 0),
+                now.getOffset()
+        );
+        client.getHistory(startOfDay);
+    }
+
 
 }
 
