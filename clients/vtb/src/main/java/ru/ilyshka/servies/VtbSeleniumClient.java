@@ -250,7 +250,7 @@ public class VtbSeleniumClient implements AutoCloseable {
     public synchronized void getHistory(LocalDate from, LocalDate to) {
         String authToken = getAuthToken();
         String userFingerprint = getUserFingerprint();
-        
+
         final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
                 "?dateFrom="+from.toString()+"T00:00:00&dateTo="+to.toString()+"T23:59:59";
 
@@ -258,7 +258,7 @@ public class VtbSeleniumClient implements AutoCloseable {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add("Cookie", "USER_FINGERPRINT=" + userFingerprint);
         headers.add("Authorization", "Bearer " + authToken);
-        headers.add("referer", "https://online.vtb.ru/home");
+        headers.add("referer", "https://online.vtb.ru/history");
 
         HttpEntity<String> requestEntity = new HttpEntity<>(headers);
         ResponseEntity<String> response = restTemplate.exchange(
@@ -267,7 +267,6 @@ public class VtbSeleniumClient implements AutoCloseable {
                 requestEntity,
                 String.class
         );
-
 
         Map<String, Object> result = OBJECT_MAPPER.readValue(response.getBody(), new TypeReference<>() {
         });
