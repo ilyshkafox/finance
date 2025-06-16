@@ -16,6 +16,7 @@
     <modules>
         <module>libs</module>
         <module>clients</module>
+        <module>core</module>
     </modules>
 
     <packaging>pom</packaging>
