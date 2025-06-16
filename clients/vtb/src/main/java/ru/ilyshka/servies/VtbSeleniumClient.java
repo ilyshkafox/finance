@@ -250,8 +250,7 @@ public class VtbSeleniumClient implements AutoCloseable {
     public synchronized void getHistory(LocalDate from, LocalDate to) {
         String authToken = getAuthToken();
         String userFingerprint = getUserFingerprint();
-
-
+        
         final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
                 "?dateFrom="+from.toString()+"T00:00:00&dateTo="+to.toString()+"T23:59:59";
 
