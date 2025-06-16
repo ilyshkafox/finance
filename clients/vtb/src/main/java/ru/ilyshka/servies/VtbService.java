@@ -8,8 +8,7 @@ import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.libs.messages.FinanceEventService;
 import ru.ilyshka.libs.messages.dto.HealthCheckMessage;
 
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -45,14 +44,7 @@ public class VtbService {
     public void startActions() {
         List<Wallet> wallets = client.getWallets();
         wallets.forEach(wallet -> log.info("{}", wallet));
-
-        OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime startOfDay = OffsetDateTime.of(
-                now.toLocalDate(),
-                LocalTime.of(0, 0, 0),
-                now.getOffset()
-        );
-        client.getHistory(startOfDay);
+        client.getHistory(LocalDate.now().minusDays(30), LocalDate.now());
     }
 
 

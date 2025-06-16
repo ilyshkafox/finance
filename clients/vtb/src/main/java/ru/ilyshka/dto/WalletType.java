@@ -1,5 +1,5 @@
 package ru.ilyshka.dto;
 
 public enum WalletType {
-    DEBIT, SAVING, CREDIT
+    DEBIT, SAVING, DEPOSIT, CREDIT
 }

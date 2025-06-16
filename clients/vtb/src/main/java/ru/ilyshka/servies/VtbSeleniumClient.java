@@ -1,5 +1,7 @@
 package ru.ilyshka.servies;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -7,27 +9,32 @@ import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.html5.WebStorage;
+import org.openqa.selenium.remote.Augmenter;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import ru.ilyshka.configuration.VpbProperties;
 import ru.ilyshka.dto.State;
 import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.dto.WalletType;
-import ru.ilyshka.utils.DateUtils;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VtbSeleniumClient implements AutoCloseable {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String PAGE_LOGIN = "https://online.vtb.ru/login";
     private static final String PAGE_HOME = "https://online.vtb.ru/home";
     private static final String PAGE_HISTORY = "https://online.vtb.ru/history";
@@ -36,8 +43,10 @@ public class VtbSeleniumClient implements AutoCloseable {
     private static final String PAGE_AUTOPAYMENTS = "https://online.vtb.ru/autopayments";
     private final VpbProperties properties;
     private final NotifyService notifyService;
+    private final RestTemplate restTemplate = new RestTemplate();
     private WebDriver driver;
     private Wait<WebDriver> wait;
+    private WebStorage webStorage;
 
     @SneakyThrows
     @PostConstruct
@@ -52,7 +61,7 @@ public class VtbSeleniumClient implements AutoCloseable {
         driver = new ChromeDriver(options);
         driver.get("https://online.vtb.ru");
         wait = new WebDriverWait(driver, Duration.ofSeconds(30));
-
+        webStorage = (WebStorage) new Augmenter().augment(driver);
         checkActivity();
     }
 
@@ -180,72 +189,89 @@ public class VtbSeleniumClient implements AutoCloseable {
         Thread.sleep(1000);
     }
 
+    @SneakyThrows
     public synchronized List<Wallet> getWallets() {
-        State state = getState();
-        if (!state.isAuth()) {
-            throw new RuntimeException("Не пройдена авторизация");
-        }
-        openPage(State.PAGE_HOME);
+        String authToken = getAuthToken();
+        String userFingerprint = getUserFingerprint();
 
-        List<Wallet> wallets = new ArrayList<>();
-        WebElement masterElement = driver.findElement(By.xpath("//p[starts-with(.,'Мастер-счет в рублях')]/../../../../.."));
-        String masterId = masterElement.getDomAttribute("data-id");
-        WebElement element = masterElement.findElement(By.xpath("div/div[1]"));
-        String masterName = element.findElement(By.xpath("div[2]/div/p[1]")).getText();
-        String masterMoneyStr = element.findElement(By.xpath("div[3]")).getText()
-                .replaceAll("[^0-9.,]", "")
-                .replace(',', '.');
-        wallets.add(Wallet.builder()
-                .id(masterId)
-                .type(WalletType.DEBIT)
-                .name(masterName)
-                .money(new BigDecimal(masterMoneyStr))
-                .build()
+        final String url = "https://online.vtb.ru/msa/api-gw/private/portfolio/portfolio-main-page/portfolios/active" +
+                "?requestProductTypes=ACCOUNT%2CSAVING%2CLOAN";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add("Cookie", "USER_FINGERPRINT=" + userFingerprint);
+        headers.add("Authorization", "Bearer " + authToken);
+        headers.add("referer", "https://online.vtb.ru/home");
+
+        HttpEntity<String> requestEntity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(
+                URI.create(url),
+                HttpMethod.GET,
+                requestEntity,
+                String.class
         );
 
-        List<WebElement> savings = driver.findElements(By.xpath("//p[starts-with(.,'Открыть счет или вклад')]/../../../div[1]/button"));
-        savings.forEach(saving -> wallets.add(getDataWallet(WalletType.SAVING, saving)));
 
-        List<WebElement> credits = driver.findElements(By.xpath("//p[starts-with(.,'Выбрать кредит')]/../../../div[1]/button"));
-        credits.forEach(credit -> wallets.add(getDataWallet(WalletType.CREDIT, credit)));
+        Map<String, Object> result = OBJECT_MAPPER.readValue(response.getBody(), new TypeReference<>() {
+        });
+        Map<String, Map<String, Object>> accounts = (Map<String, Map<String, Object>>) result.get("accounts");
+        Map<String, Map<String, Object>> deposits = (Map<String, Map<String, Object>>) result.get("deposits");
+        Map<String, Map<String, Object>> loans = (Map<String, Map<String, Object>>) result.get("loans");
 
-        return wallets;
+        return Stream.of(
+                        accounts.values(),
+                        deposits.values(),
+                        loans.values()
+                ).flatMap(Collection::stream)
+                .map(walletMap -> {
+                    String publicId = (String) walletMap.get("publicId");
+                    String type = (String) walletMap.get("type");
+                    String name = (String) walletMap.get("name");
+                    BigDecimal money = new BigDecimal(String.valueOf(((Map<String, Object>) walletMap.get("balance")).get("amount")));
+
+                    return Wallet.builder()
+                            .id(publicId)
+                            .type(switch (type) {
+                                case "MASTER_ACCOUNT" -> WalletType.DEBIT;
+                                case "DEPOSIT" -> WalletType.DEPOSIT;
+                                case "SAVING_ACCOUNT" -> WalletType.SAVING;
+                                case "CREDIT" -> WalletType.CREDIT;
+                                default -> throw new RuntimeException("Неизвестный тип накоплений: " + type);
+                            })
+                            .name(name)
+                            .money(money)
+                            .build();
+                })
+                .toList();
+
     }
 
-    public synchronized void getHistory(OffsetDateTime from) {
-        openPage(State.PAGE_HISTORY);
-        WebElement body = driver.findElement(By.xpath("//body"));
+    @SneakyThrows
+    public synchronized void getHistory(LocalDate from, LocalDate to) {
+        String authToken = getAuthToken();
+        String userFingerprint = getUserFingerprint();
 
 
-        // Передвинуть активные элемент на первую дату
-        while (true) {
-            try {
-                WebElement webElement = driver.switchTo().activeElement().findElement(By.xpath(".."));
-                if (webElement.getDomAttribute("data-id") != null) {
-                    break;
-                }
-                body.sendKeys(Keys.TAB);
-            } catch (NotFoundException e) {
-                body.sendKeys(Keys.TAB);
-            }
-        }
+        final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
+                "?dateFrom="+from.toString()+"T00:00:00&dateTo="+to.toString()+"T23:59:59";
 
-        WebElement webElement = driver.switchTo().activeElement();
-        String text = webElement.getAttribute("innerHTML");
-        text = text.substring(text.indexOf(">") + 1);
-        text = text.substring(0, text.indexOf("<"));
-        LocalDate firstDate = DateUtils.parseDate(text);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add("Cookie", "USER_FINGERPRINT=" + userFingerprint);
+        headers.add("Authorization", "Bearer " + authToken);
+        headers.add("referer", "https://online.vtb.ru/home");
+
+        HttpEntity<String> requestEntity = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(
+                URI.create(url),
+                HttpMethod.GET,
+                requestEntity,
+                String.class
+        );
 
 
-
-
-
-        body.sendKeys(Keys.TAB);
-        // Мы находимя на первом элементе
-        Map<String, String> stringStringMap = readDataActiveElement();
-
-
-        System.out.println("");
+        Map<String, Object> result = OBJECT_MAPPER.readValue(response.getBody(), new TypeReference<>() {
+        });
     }
 
 
@@ -257,20 +283,18 @@ public class VtbSeleniumClient implements AutoCloseable {
     }
 
 
-    private Wallet getDataWallet(WalletType type, WebElement element) {
-        String id = element.getDomAttribute("data-id");
-        WebElement detailElement = element.findElement(By.xpath("div[2]/div/div[1]/div"));
-        String name = detailElement.findElement(By.xpath("div[1]/div[1]")).getText();
-        String moneyStr = detailElement.findElement(By.xpath("div[2]/p")).getText()
-                .replaceAll("[^0-9.,]", "")
-                .replace(',', '.');
+    @SneakyThrows
+    private String getAuthToken() {
+        if (!getState().isAuth()) throw new RuntimeException("Не пройдена авторизация");
+        Map<String, String> auth = OBJECT_MAPPER.readValue(webStorage.getSessionStorage().getItem("@vtb/auth"), new TypeReference<>() {
+        });
+        return auth.get("idToken");
+    }
 
-        return Wallet.builder()
-                .id(id)
-                .type(type)
-                .name(name)
-                .money(new BigDecimal(moneyStr))
-                .build();
+    @SneakyThrows
+    private String getUserFingerprint() {
+        if (!getState().isAuth()) throw new RuntimeException("Не пройдена авторизация");
+        return driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
     }
 
 
