@@ -1,0 +1,3 @@
+app:
+  check-cron: "*/30 * * * * *"
+  action-cron: "*/30 * * * * *"
