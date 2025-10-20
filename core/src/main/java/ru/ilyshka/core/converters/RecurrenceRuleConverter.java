@@ -9,7 +9,7 @@ public class RecurrenceRuleConverter implements AttributeConverter<RecurrenceRul
 
     @Override
     public String convertToDatabaseColumn(RecurrenceRule attribute) {
-        return attribute != null ? attribute.toString() : null;
+        return attribute != null ? attribute.toString() : "";
     }
 
     @Override
