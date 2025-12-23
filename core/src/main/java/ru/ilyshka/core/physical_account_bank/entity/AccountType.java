@@ -1,4 +1,4 @@
-package ru.ilyshka.core.account_bank.entity;
+package ru.ilyshka.core.physical_account_bank.entity;
 
 public enum AccountType {
     DEBIT, SAVING, CREDIT
