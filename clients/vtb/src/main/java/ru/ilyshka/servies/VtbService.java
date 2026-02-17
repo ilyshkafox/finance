@@ -42,9 +42,12 @@ public class VtbService {
 
     @Scheduled(cron = "${app.action-cron}")
     public void startActions() {
+        log.info("Start Actions...");
         List<Wallet> wallets = client.getWallets();
         wallets.forEach(wallet -> log.info("{}", wallet));
+
         client.getHistory(LocalDate.now().minusDays(30), LocalDate.now());
+
     }
 
 

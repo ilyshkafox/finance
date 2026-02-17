@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -54,8 +55,15 @@ public class VtbSeleniumClient implements AutoCloseable {
         ChromeOptions options = new ChromeOptions();
 
         options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--disable-webrtc");
+        options.addArguments("--hide-scrollbars");
+        options.addArguments("--disable-notifications");
+        options.addArguments("--start-maximized");
         options.addArguments("disable-infobars");
         options.addArguments("--detach=true");
+        options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 YaBrowser/25.12.0.0 Safari/537.36");
 
 //        driver = new RemoteWebDriver(URI.create("http://localhost:4444/wd/hub").toURL(), options);
         driver = new ChromeDriver(options);
@@ -93,7 +101,17 @@ public class VtbSeleniumClient implements AutoCloseable {
         log.info("Login phone: {}", properties.phone());
         WebElement main = driver.findElement(By.tagName("main"));
         WebElement input = main.findElement(By.tagName("input"));
-        input.sendKeys(properties.phone());
+
+        input.click();
+        Random random = new Random();
+        properties.phone().chars()
+                .forEach(value -> {
+                    try {
+                        Thread.sleep(random.nextInt(100, 500));
+                    } catch (InterruptedException e) {
+                    }
+                    input.sendKeys(String.valueOf((char) value));
+                });
         sleep();
         WebElement button = main.findElement(By.cssSelector("form"))
                 .findElement(By.cssSelector("button[type=submit]"));
@@ -108,9 +126,13 @@ public class VtbSeleniumClient implements AutoCloseable {
     private void checkCloseDialog() {
         log.info("Проверка на баннер диалог");
         try {
-            driver.findElement(By.xpath("//div[@role='dialog']//button[@aria-label='Закрыть']"))
-                    .click();
-            log.info("Мы закрыли баннер.");
+            WebElement modelElement = driver.findElement(By.id("host-modals-portal"));
+            if(modelElement.findElements(By.tagName("div")).size()>0){
+                modelElement.findElement(By.xpath("//button[@aria-label='Закрыть']"))
+                                .click();
+                log.info("Мы закрыли баннер.");
+            }
+
         } catch (Exception ignore) {
         }
     }
@@ -252,7 +274,7 @@ public class VtbSeleniumClient implements AutoCloseable {
         String userFingerprint = getUserFingerprint();
 
         final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
-                "?dateFrom="+from.toString()+"T00:00:00&dateTo="+to.toString()+"T23:59:59";
+                "?dateFrom=" + from.toString() + "T00:00:00&dateTo=" + to.toString() + "T23:59:59";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -270,6 +292,15 @@ public class VtbSeleniumClient implements AutoCloseable {
 
         Map<String, Object> result = OBJECT_MAPPER.readValue(response.getBody(), new TypeReference<>() {
         });
+
+        List<Map<String, Object>> operations = (List<Map<String, Object>>) result.get("operations");
+
+        for (int i = 0; i < operations.size(); i++) {
+            Map<String, Object> stringObjectMap = operations.get(i);
+            log.info("{}", stringObjectMap);
+        }
+
+
     }
 
 
