@@ -1,15 +1,14 @@
 package ru.ilyshka.servies;
 
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.libs.messages.FinanceEventService;
 import ru.ilyshka.libs.messages.dto.HealthCheckMessage;
 
-import java.time.LocalDate;
-import java.util.List;
+import java.time.YearMonth;
 
 @Slf4j
 @Component
@@ -40,14 +39,19 @@ public class VtbService {
         }
     }
 
-    @Scheduled(cron = "${app.action-cron}")
+    @SneakyThrows
     public void startActions() {
         log.info("Start Actions...");
-        List<Wallet> wallets = client.getWallets();
-        wallets.forEach(wallet -> log.info("{}", wallet));
 
-        client.getHistory(LocalDate.now().minusDays(30), LocalDate.now());
+        YearMonth startMonth = YearMonth.of(2024, 10);
+        YearMonth currentMonth = YearMonth.now();
 
+        for (YearMonth month = currentMonth; !month.isBefore(startMonth); month = month.minusMonths(1)) {
+            log.info("Processing month: {}", month);
+            client.getHistory(month);
+            int randomNum = (int) (Math.random() * 1000);
+            Thread.sleep(1000 + randomNum);
+        }
     }
 
 

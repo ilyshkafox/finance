@@ -21,14 +21,16 @@ import ru.ilyshka.dto.State;
 import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.dto.WalletType;
 
+import java.io.*;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -60,7 +62,7 @@ public class VtbSeleniumClient implements AutoCloseable {
         options.addArguments("--disable-webrtc");
         options.addArguments("--hide-scrollbars");
         options.addArguments("--disable-notifications");
-        options.addArguments("--start-maximized");
+//        options.addArguments("--start-maximized");
         options.addArguments("disable-infobars");
         options.addArguments("--detach=true");
         options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 YaBrowser/25.12.0.0 Safari/537.36");
@@ -68,9 +70,40 @@ public class VtbSeleniumClient implements AutoCloseable {
 //        driver = new RemoteWebDriver(URI.create("http://localhost:4444/wd/hub").toURL(), options);
         driver = new ChromeDriver(options);
         driver.get("https://online.vtb.ru");
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("G:\\Git\\github.com\\ilyshkafox\\finance\\.rest\\1"))) {
+            Set<Cookie> cookies = (Set<Cookie>) ois.readObject();
+
+            for (Cookie cookie : cookies) {
+                driver.manage().addCookie(cookie);
+            }
+            System.out.println("Cookies успешно загружены.");
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Ошибка при загрузке cookies: " + e.getMessage());
+        }
+
+        driver.get("https://online.vtb.ru");
+
         wait = new WebDriverWait(driver, Duration.ofSeconds(30));
         webStorage = (WebStorage) new Augmenter().augment(driver);
-        checkActivity();
+        waitRootNotEmpty();
+    }
+
+    public void waitRootNotEmpty() {
+        wait.until(d -> {
+            log.debug("Ожидание пока элемент root будет заполнен");
+            WebElement element = d.findElement(By.id("root"));
+            String text = element.getText();
+            if (!text.trim().isEmpty()) {
+                return element;
+            }
+            if (!element.findElements(By.xpath("./*")).isEmpty()) {
+                return element;
+            }
+            return null; // элемент пуст – продолжаем ждать
+        });
+        log.debug("Root элемент не пустой");
+
     }
 
 
@@ -127,9 +160,9 @@ public class VtbSeleniumClient implements AutoCloseable {
         log.info("Проверка на баннер диалог");
         try {
             WebElement modelElement = driver.findElement(By.id("host-modals-portal"));
-            if(modelElement.findElements(By.tagName("div")).size()>0){
+            if (modelElement.findElements(By.tagName("div")).size() > 0) {
                 modelElement.findElement(By.xpath("//button[@aria-label='Закрыть']"))
-                                .click();
+                        .click();
                 log.info("Мы закрыли баннер.");
             }
 
@@ -201,6 +234,15 @@ public class VtbSeleniumClient implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        Set<Cookie> cookies = driver.manage().getCookies();
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("G:\\Git\\github.com\\ilyshkafox\\finance\\.rest\\1"))) {
+            oos.writeObject(cookies);
+            System.out.println("Cookies успешно сохранены.");
+        } catch (IOException e) {
+            System.err.println("Ошибка при сохранении cookies: " + e.getMessage());
+        }
+
+
         driver.quit();
         driver.close();
     }
@@ -269,13 +311,21 @@ public class VtbSeleniumClient implements AutoCloseable {
     }
 
     @SneakyThrows
-    public synchronized void getHistory(LocalDate from, LocalDate to) {
+    public synchronized void getHistory(YearMonth yearMonth) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+
+        LocalDate fromDateTime = yearMonth.atDay(1);
+        LocalDate toDateTime = yearMonth.atEndOfMonth();
+
+
         String authToken = getAuthToken();
         String userFingerprint = getUserFingerprint();
 
         final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
-                "?dateFrom=" + from.toString() + "T00:00:00&dateTo=" + to.toString() + "T23:59:59";
+                "?dateFrom=" + fromDateTime.toString() + "T00:00:00.000%2B03:00&dateTo=" + toDateTime.toString() + "T23:59:59.999%2B03:00";
 
+
+        // https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser?dateFrom=2026-03-21T00:00:00.000%2B03:00&dateTo=2026-04-21T23:59:59.999%2B03:00
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add("Cookie", "USER_FINGERPRINT=" + userFingerprint);
@@ -295,14 +345,21 @@ public class VtbSeleniumClient implements AutoCloseable {
 
         List<Map<String, Object>> operations = (List<Map<String, Object>>) result.get("operations");
 
-        for (int i = 0; i < operations.size(); i++) {
-            Map<String, Object> stringObjectMap = operations.get(i);
-            log.info("{}", stringObjectMap);
-        }
-
-
+        writeMapsAsJsonLines(operations, Path.of("E:\\Данные").resolve(yearMonth + ".json"));
     }
 
+
+    public static void writeMapsAsJsonLines(List<Map<String, Object>> data, Path filePath) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+
+        try (BufferedWriter writer = Files.newBufferedWriter(filePath)) {
+            for (Map<String, Object> map : data) {
+                String jsonLine = mapper.writeValueAsString(map);
+                writer.write(jsonLine);
+                writer.newLine();
+            }
+        }
+    }
 
     private Map<String, String> readDataActiveElement() {
         WebElement webElement = driver.switchTo().activeElement();
