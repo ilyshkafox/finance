@@ -115,7 +115,7 @@ public class FireflySyncService {
         }
 
         if (mainAccountId == null || savingsAccountId == null || mortgageAccountId == null || unknownAccountId == null) {
-            throw new RuntimeException("Не удалось найти все необходимые счета в Firefly III! " +
+            throw new RuntimeException("Не удалось найти все необходимые счета! " +
                     "main=" + mainAccountId + ", savings=" + savingsAccountId +
                     ", mortgage=" + mortgageAccountId + ", unknown=" + unknownAccountId);
         }
@@ -151,6 +151,7 @@ public class FireflySyncService {
 
     private void processOperation(JsonNode op) throws IOException, InterruptedException {
         String date = extractDate(op);
+        String uniqueId = getUniqueId(op);
         double amount = op.path("operationAmount").path("sum").asDouble();
         boolean isDebet = op.path("debet").asBoolean(true);
         String accountMask = op.path("account").asText("");
@@ -158,47 +159,29 @@ public class FireflySyncService {
         String status = op.path("status").asText("");
         String operationType = op.path("operationType").asText("");
         String fullName = op.path("fullOperationName").asText("");
-        String operationName = op.path("operationName").asText("");
 
         // 1. Пропускаем отклонённые транзакции
         if ("Declined".equalsIgnoreCase(status)) {
-            System.out.printf("⏭️ Пропущена отклонённая операция: статус=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
-                    status, date, amount, notes);
+            System.out.printf("⏭️ Пропущена отклонённая операция: external_id=%s, статус=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
+                    uniqueId, status, date, amount, notes);
             return;
         }
 
         // 2. Для переводов между своими счетами обрабатываем только сторону списания (debet=true)
         if ("Между своими счетами".equals(operationType) && !isDebet) {
-            System.out.printf("⏭️ Пропущена сторона зачисления при переводе между счетами: %s%n", notes);
+            System.out.printf("⏭️ Пропущена сторона зачисления при переводе между счетами: external_id=%s, статус=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
+                    uniqueId, status, date, amount, notes);
             return;
         }
 
-        // 3. Обработка кредитных операций (погашение кредита)
-        boolean isCreditOperation = "Операции по кредитам".equals(operationType)
-                || "Платеж по кредиту".equals(operationName)
-                || fullName.contains("Погашение обязательств по кредитному договору");
-
-        if (isCreditOperation) {
-            String fireflyAccountId = getFireflyAccountIdByMask(accountMask);
-            if (isDebet && fireflyAccountId.equals(mainAccountId)) {
-                // Списание с основного счёта в счёт погашения кредита → transfer на ипотечный
-                String uniqueId = getUniqueId(op);
-                if (transactionExistsByExternalId(uniqueId)) {
-                    System.out.printf("⚠️ Пропущено (дубликат по external_id=%s): кредитная операция, дата=%s, сумма=%.2f%n",
-                            uniqueId, date, amount);
-                    return;
-                }
-                createTransaction("transfer", date, amount, notes, mainAccountId, mortgageAccountId, uniqueId);
-                System.out.printf("✅ Создана транзакция погашения кредита: external_id=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
-                        uniqueId, date, amount, notes);
-            } else {
-                // Зачисление на кредитный счёт или иная сторона — пропускаем
-                System.out.printf("⏭️ Пропущена сторона кредитной операции (зачисление на кредитный счёт): %s%n", notes);
-            }
+        // 3. Для кредитных операций (погашение) обрабатываем только списание с основного счёта
+        if (("Платеж по кредиту".equals(operationType) || "Операции по кредитам".equals(operationType) ||
+                fullName.contains("Погашение обязательств по кредитному договору")) && !isDebet) {
+            System.out.printf("⏭️ Пропущена сторона кредитной операции (зачисление на кредитный счёт): external_id=%s, статус=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
+                    uniqueId, status, date, amount, notes);
             return;
         }
 
-        // 4. Получаем ID счёта в Firefly (для неизвестных масок — ACCOUNT_UNKNOWN)
         String fireflyAccountId = getFireflyAccountIdByMask(accountMask);
 
         String type;
@@ -211,13 +194,18 @@ public class FireflySyncService {
             destinationId = fireflyAccountId;
         } else {
             // Расход
-            if (fireflyAccountId.equals(mortgageAccountId)) {
-                // Погашение ипотеки (если не отловилось выше) — на всякий случай
+            // Погашение кредита (списание с основного на ипотечный)
+            if ("Операции по кредитам".equals(operationType) || "Платеж по кредиту".equals(operationType) ||
+                    fullName.contains("Погашение обязательств по кредитному договору")) {
+                type = "transfer";
+                sourceId = mainAccountId;
+                destinationId = mortgageAccountId;
+            } else if (fireflyAccountId.equals(mortgageAccountId)) {
+                // Погашение ипотеки по маске счёта (резерв)
                 type = "transfer";
                 sourceId = mainAccountId;
                 destinationId = mortgageAccountId;
             } else if ("Между своими счетами".equals(operationType)) {
-                // Перевод между своими счетами
                 if (fireflyAccountId.equals(savingsAccountId)) {
                     type = "transfer";
                     sourceId = savingsAccountId;
@@ -227,7 +215,6 @@ public class FireflySyncService {
                     sourceId = mainAccountId;
                     destinationId = savingsAccountId;
                 } else {
-                    // Списание с неизвестного счёта → перевод на основной
                     type = "transfer";
                     sourceId = unknownAccountId;
                     destinationId = mainAccountId;
@@ -240,15 +227,12 @@ public class FireflySyncService {
             }
         }
 
-        // 5. Проверка дубликата по уникальному external_id
-        String uniqueId = getUniqueId(op);
         if (transactionExistsByExternalId(uniqueId)) {
             System.out.printf("⚠️ Пропущено (дубликат по external_id=%s): дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
                     uniqueId, date, amount, notes);
             return;
         }
 
-        // 6. Создаём транзакцию
         createTransaction(type, date, amount, notes, sourceId, destinationId, uniqueId);
         System.out.printf("✅ Создана транзакция: external_id=%s, дата=%s, сумма=%.2f руб., тип=%s, описание=\"%s\"%n",
                 uniqueId, date, amount, type, notes);
@@ -326,10 +310,6 @@ public class FireflySyncService {
                 }
                 break;
         }
-
-        double amount = op.path("operationAmount").path("sum").asDouble(0);
-        String date = extractDate(op);
-        sb.append(String.format(" | %.2f руб. | %s", amount, date));
 
         return sb.toString();
     }
@@ -496,8 +476,17 @@ public class FireflySyncService {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            throw new RuntimeException("Ошибка создания транзакции: " + response.body());
+        int statusCode = response.statusCode();
+        if (statusCode != 200) {
+            String responseBody = response.body();
+            // При 302/301 выводим больше деталей для диагностики
+            if (statusCode == 302 || statusCode == 301) {
+                String location = response.headers().firstValue("Location").orElse("неизвестно");
+                throw new RuntimeException(String.format(
+                        "Редирект %d. Проверьте URL и токен. Location: %s. Тело ответа: %s",
+                        statusCode, location, responseBody));
+            }
+            throw new RuntimeException("Ошибка создания транзакции (код " + statusCode + "): " + responseBody);
         }
     }
 }
