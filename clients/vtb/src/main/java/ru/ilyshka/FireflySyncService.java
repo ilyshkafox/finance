@@ -18,7 +18,9 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FireflySyncService {
 
@@ -28,9 +30,12 @@ public class FireflySyncService {
     // ======================== КОНФИГУРАЦИЯ (замените под себя) ========================
     private static final String FIREFLY_BASE_URL = "http://192.168.2.100:30105";
     private static final String FIREFLY_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIwMTlkYjE1NS1kMzlmLTcyOGQtODE2YS1kNmM5MzM0OWFmZGYiLCJqdGkiOiJhZjkxN2UxZmI0NzI0MGU0ZjVkZDljMjAyYWFkNzJkOTk2YjE5ZDZjODliODYwYzgwNjNlNDUxNzIxZDNlMGFjY2Q4OGY0ZWRmYTRmYmJiNCIsImlhdCI6MTc3Njc5NzQxMi41NDQxODQsIm5iZiI6MTc3Njc5NzQxMi41NDQxODYsImV4cCI6MTgwODMzMzQxMi41MDYwNjYsInN1YiI6IjEiLCJzY29wZXMiOltdfQ.Av0KwAL1Yum0cVOudPWSoaYWyRJROMKjfZp3EVHAM7vTGaKJqBrCY69i47TwrJuGZMPfo-OExsedWnQNTFWgr5q96VO9Wx8UAg8y2bq0TkJPCr4Acvsx1fRxoaVOLK3Fjq8FQw_5OMJfFuiEIHdsYkCV_YnOw5TdJFl9y5rokHc0VDibdwESeUvx8C6yOpwSp7355mL_Kd5ldfxPsNDkK5rjYp0mf1yLqQe-ZIxdbJSf0YqhYqDYl8Rro8EUyjV15wwwJHHlMJeXFhgMZQXouujqXE9KRypUTHtSshq0XhGe9Ky0yZojxiqSAg9Z3VxOolp0ros_mMS3ejAsBL7FKYYGVjaDkZ0XqHNRfnyvM6Tz6h6SGxiDrqwn3ls6umjiKX41IWbuaaTepWS1MSh__PT4lWi2MZCRyEEzMChONp7K9RUJVi4uyuLsnvQ-nmSG3kOk7QaNPvF0SmhMqhjfDKgQt4iEx9iGIt1TQ-rTZxkSXsWgAoLwHvD5rg_cNE1vSq7YqwVGNvt-z-yZjBu1zeZKkO7NmeP4bPxsj-BXXx8i2b7TXEFDUAn9APiUMYEg4seYPBdWTIdATppz8iFQKE1yi0Fz8mw4e0wpES1ZDEAbY_RhuSGm6FT3djT_WmOy3vMUg9Ay-IgrBByGB__hV6aA30kWbZ2cGUHLvVNz6CI";
+
+    // Названия счетов в Firefly III (должны существовать)
     private static final String ACCOUNT_MAIN = "ВТБ";
     private static final String ACCOUNT_SAVINGS = "Сберегательный счёт в ВТБ";
     private static final String ACCOUNT_MORTGAGE = "Ипотека СЖ с господдержкой 2020 для IT.";
+    private static final String ACCOUNT_UNKNOWN = "Неизвестный счёт";
 
     // Маски счетов ВТБ (как приходят в поле "account")
     private static final String MASK_MAIN = "*3314";
@@ -41,6 +46,9 @@ public class FireflySyncService {
     private String mainAccountId;
     private String savingsAccountId;
     private String mortgageAccountId;
+    private String unknownAccountId;
+
+    private final Map<String, String> maskToId = new HashMap<>();
 
     public FireflySyncService() {
         this.httpClient = HttpClient.newBuilder().build();
@@ -91,16 +99,25 @@ public class FireflySyncService {
             String name = account.path("attributes").path("name").asText("");
             String id = account.path("id").asText("");
 
-            if (name.equals(ACCOUNT_MAIN)) mainAccountId = id;
-            else if (name.equals(ACCOUNT_SAVINGS)) savingsAccountId = id;
-            else if (name.equals(ACCOUNT_MORTGAGE)) mortgageAccountId = id;
-
+            if (name.equals(ACCOUNT_MAIN)) {
+                mainAccountId = id;
+                maskToId.put(MASK_MAIN, id);
+            } else if (name.equals(ACCOUNT_SAVINGS)) {
+                savingsAccountId = id;
+                maskToId.put(MASK_SAVINGS, id);
+            } else if (name.equals(ACCOUNT_MORTGAGE)) {
+                mortgageAccountId = id;
+                maskToId.put(MASK_MORTGAGE, id);
+            } else if (name.equals(ACCOUNT_UNKNOWN)) {
+                unknownAccountId = id;
+            }
             System.out.println("Найден счет: " + name + " (ID: " + id + ")");
         }
 
-        if (mainAccountId == null || savingsAccountId == null || mortgageAccountId == null) {
+        if (mainAccountId == null || savingsAccountId == null || mortgageAccountId == null || unknownAccountId == null) {
             throw new RuntimeException("Не удалось найти все необходимые счета в Firefly III! " +
-                    "main=" + mainAccountId + ", savings=" + savingsAccountId + ", mortgage=" + mortgageAccountId);
+                    "main=" + mainAccountId + ", savings=" + savingsAccountId +
+                    ", mortgage=" + mortgageAccountId + ", unknown=" + unknownAccountId);
         }
         System.out.println("ID счетов успешно получены.\n");
     }
@@ -122,7 +139,6 @@ public class FireflySyncService {
                 continue;
             }
 
-            // Если строка содержит массив "operations", обрабатываем каждый элемент
             if (op.has("operations") && op.get("operations").isArray()) {
                 for (JsonNode subOp : op.get("operations")) {
                     processOperation(subOp);
@@ -141,6 +157,8 @@ public class FireflySyncService {
         String notes = generateNotes(op);
         String status = op.path("status").asText("");
         String operationType = op.path("operationType").asText("");
+        String fullName = op.path("fullOperationName").asText("");
+        String operationName = op.path("operationName").asText("");
 
         // 1. Пропускаем отклонённые транзакции
         if ("Declined".equalsIgnoreCase(status)) {
@@ -155,8 +173,33 @@ public class FireflySyncService {
             return;
         }
 
-        // Определяем ID счёта в Firefly по маске
-        String vtbAccountFireflyId = getFireflyAccountIdByMask(accountMask);
+        // 3. Обработка кредитных операций (погашение кредита)
+        boolean isCreditOperation = "Операции по кредитам".equals(operationType)
+                || "Платеж по кредиту".equals(operationName)
+                || fullName.contains("Погашение обязательств по кредитному договору");
+
+        if (isCreditOperation) {
+            String fireflyAccountId = getFireflyAccountIdByMask(accountMask);
+            if (isDebet && fireflyAccountId.equals(mainAccountId)) {
+                // Списание с основного счёта в счёт погашения кредита → transfer на ипотечный
+                String uniqueId = getUniqueId(op);
+                if (transactionExistsByExternalId(uniqueId)) {
+                    System.out.printf("⚠️ Пропущено (дубликат по external_id=%s): кредитная операция, дата=%s, сумма=%.2f%n",
+                            uniqueId, date, amount);
+                    return;
+                }
+                createTransaction("transfer", date, amount, notes, mainAccountId, mortgageAccountId, uniqueId);
+                System.out.printf("✅ Создана транзакция погашения кредита: external_id=%s, дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
+                        uniqueId, date, amount, notes);
+            } else {
+                // Зачисление на кредитный счёт или иная сторона — пропускаем
+                System.out.printf("⏭️ Пропущена сторона кредитной операции (зачисление на кредитный счёт): %s%n", notes);
+            }
+            return;
+        }
+
+        // 4. Получаем ID счёта в Firefly (для неизвестных масок — ACCOUNT_UNKNOWN)
+        String fireflyAccountId = getFireflyAccountIdByMask(accountMask);
 
         String type;
         String sourceId = null;
@@ -165,24 +208,39 @@ public class FireflySyncService {
         if (!isDebet) {
             // Доход (зачисление)
             type = "deposit";
-            destinationId = vtbAccountFireflyId;
+            destinationId = fireflyAccountId;
         } else {
-            // Расход / перевод
-            if (vtbAccountFireflyId.equals(savingsAccountId)) {
-                type = "transfer";
-                sourceId = savingsAccountId;
-                destinationId = mainAccountId;
-            } else if (vtbAccountFireflyId.equals(mortgageAccountId)) {
+            // Расход
+            if (fireflyAccountId.equals(mortgageAccountId)) {
+                // Погашение ипотеки (если не отловилось выше) — на всякий случай
                 type = "transfer";
                 sourceId = mainAccountId;
                 destinationId = mortgageAccountId;
+            } else if ("Между своими счетами".equals(operationType)) {
+                // Перевод между своими счетами
+                if (fireflyAccountId.equals(savingsAccountId)) {
+                    type = "transfer";
+                    sourceId = savingsAccountId;
+                    destinationId = mainAccountId;
+                } else if (fireflyAccountId.equals(mainAccountId)) {
+                    type = "transfer";
+                    sourceId = mainAccountId;
+                    destinationId = savingsAccountId;
+                } else {
+                    // Списание с неизвестного счёта → перевод на основной
+                    type = "transfer";
+                    sourceId = unknownAccountId;
+                    destinationId = mainAccountId;
+                    System.out.printf("ℹ️ Перевод с неизвестного счёта '%s' на основной: %s%n", accountMask, notes);
+                }
             } else {
+                // Обычный расход
                 type = "withdrawal";
-                sourceId = vtbAccountFireflyId;
+                sourceId = fireflyAccountId;
             }
         }
 
-        // Проверка дубликата по уникальному external_id
+        // 5. Проверка дубликата по уникальному external_id
         String uniqueId = getUniqueId(op);
         if (transactionExistsByExternalId(uniqueId)) {
             System.out.printf("⚠️ Пропущено (дубликат по external_id=%s): дата=%s, сумма=%.2f руб., описание=\"%s\"%n",
@@ -190,7 +248,7 @@ public class FireflySyncService {
             return;
         }
 
-        // Создаём транзакцию
+        // 6. Создаём транзакцию
         createTransaction(type, date, amount, notes, sourceId, destinationId, uniqueId);
         System.out.printf("✅ Создана транзакция: external_id=%s, дата=%s, сумма=%.2f руб., тип=%s, описание=\"%s\"%n",
                 uniqueId, date, amount, type, notes);
@@ -211,9 +269,6 @@ public class FireflySyncService {
         return LocalDate.now().format(dateFormatter);
     }
 
-    /**
-     * Формирует подробное описание транзакции, начиная с operationType.
-     */
     private String generateNotes(JsonNode op) {
         StringBuilder sb = new StringBuilder();
 
@@ -232,7 +287,6 @@ public class FireflySyncService {
             sb.append(": ").append(operationName);
         }
 
-        // Магазин (для оплат, не для СБП-платежей)
         JsonNode merchant = op.path("merchant");
         String merchantTitle = merchant.path("title").asText("");
         if (!merchantTitle.isEmpty() && !"Оплата по СБП".equals(operationType)) {
@@ -248,7 +302,6 @@ public class FireflySyncService {
             sb.append(" | RRN: ").append(rrn);
         }
 
-        // Детали по типам операций
         switch (operationType) {
             case "Исходящий перевод СБП":
             case "Входящий перевод СБП":
@@ -371,17 +424,12 @@ public class FireflySyncService {
     }
 
     private String getFireflyAccountIdByMask(String vtbAccountMask) {
-        if (vtbAccountMask.equals(MASK_MAIN)) return mainAccountId;
-        if (vtbAccountMask.equals(MASK_SAVINGS)) return savingsAccountId;
-        if (vtbAccountMask.equals(MASK_MORTGAGE)) return mortgageAccountId;
-        System.err.println("⚠️ Неизвестная маска счёта '" + vtbAccountMask + "', используется основной счёт.");
-        return mainAccountId;
+        String id = maskToId.get(vtbAccountMask);
+        if (id != null) return id;
+        System.err.println("⚠️ Неизвестная маска счёта '" + vtbAccountMask + "', используется счёт 'Неизвестный счёт'.");
+        return unknownAccountId;
     }
 
-    /**
-     * Генерирует уникальный идентификатор транзакции для external_id.
-     * Приоритет: internalId -> rrn -> chainId -> первый transactionId -> резерв.
-     */
     private String getUniqueId(JsonNode op) {
         String internalId = op.path("internalId").asText("");
         if (!internalId.isEmpty()) return internalId;
@@ -398,16 +446,12 @@ public class FireflySyncService {
             if (!txId.isEmpty()) return txId;
         }
 
-        // Резерв: дата+сумма+маска счёта (для старых данных)
         return String.format("%s_%s_%s",
                 extractDate(op),
                 op.path("operationAmount").path("sum").asText("0"),
                 op.path("account").asText(""));
     }
 
-    /**
-     * Проверяет, существует ли уже транзакция с таким external_id в Firefly III.
-     */
     private boolean transactionExistsByExternalId(String externalId) throws IOException, InterruptedException {
         if (externalId == null || externalId.isEmpty()) return false;
 
@@ -429,9 +473,6 @@ public class FireflySyncService {
         return root.path("data").size() > 0;
     }
 
-    /**
-     * Создаёт транзакцию в Firefly III с указанным external_id.
-     */
     private void createTransaction(String type, String date, double amount, String description,
                                    String sourceId, String destinationId, String externalId) throws IOException, InterruptedException {
         ObjectNode transaction = mapper.createObjectNode();
