@@ -97,7 +97,10 @@ public class VtbAuthService implements AutoCloseable {
     }
 
     public State getState() {
-        if (driver == null) throw new IllegalStateException("Driver is not initialized");
+        // Если браузер закрыт после успешной авторизации — возвращаем AUTH
+        if (driver == null) {
+            return savedAuthToken != null ? State.AUTH : State.LOGIN_QR;
+        }
         String fullUrl = driver.getCurrentUrl();
         int qIndex = fullUrl.indexOf('?');
         String url = qIndex >= 0 ? fullUrl.substring(0, qIndex) : fullUrl;

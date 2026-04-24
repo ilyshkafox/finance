@@ -8,8 +8,6 @@ import lombok.Getter;
 public enum State {
     LOGIN_QR(false),
     PAGE_HOME(true),
-    PAGE_HISTORY(true),
-    PAGE_TRANSFERS(true),
-    ;
+    AUTH(true);
     private boolean auth;
 }
