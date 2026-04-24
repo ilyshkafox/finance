@@ -87,14 +87,6 @@ public class VtbAuthService implements AutoCloseable {
         return ((TakesScreenshot) new Augmenter().augment(driver)).getScreenshotAs(OutputType.BASE64);
     }
 
-    public synchronized void checkActivity() {
-        try {
-            if (driver != null && getState() == State.LOGIN_QR) handleQrLogin();
-        } catch (Exception e) {
-            log.error("[CHECK] Ошибка проверки активности: {}", e.getMessage());
-            notifyService.notifyError(e.getMessage(), lastUrl, lastScreenshot);
-        }
-    }
 
     public State getState() {
         // Если браузер закрыт после успешной авторизации — возвращаем AUTH
