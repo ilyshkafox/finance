@@ -3,11 +3,7 @@ package ru.ilyshka.controllers;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import ru.ilyshka.dto.AccessCodeRequest;
-import ru.ilyshka.dto.QrLoginData;
-import ru.ilyshka.dto.SmsCodeRequest;
 import ru.ilyshka.servies.VtbAuthService;
 import ru.ilyshka.servies.VtbService;
 
@@ -25,10 +21,10 @@ public class RestController {
     }
     
     @PostMapping("/qr/start")
-    public QrLoginData startQrLogin() {
+    public String startQrLogin() {
         log.info("Получен запрос на запуск QR авторизации");
         try {
-            QrLoginData qrData = authService.startQrLogin();
+            String qrData = authService.startAuthorization();
             log.info("QR авторизация запущена успешно");
             return qrData;
         } catch (Exception e) {

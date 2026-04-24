@@ -7,7 +7,6 @@ import com.google.zxing.MultiFormatReader;
 import com.google.zxing.Result;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
-import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -21,7 +20,6 @@ import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 import ru.ilyshka.configuration.VpbProperties;
-import ru.ilyshka.dto.QrLoginData;
 import ru.ilyshka.dto.State;
 
 import javax.imageio.ImageIO;
@@ -49,17 +47,18 @@ public class VtbAuthService implements AutoCloseable {
     private WebDriver driver;
     private Wait<WebDriver> wait;
     private WebStorage webStorage;
-    private String qrAuthUrl;
+    private String qrCodeUrl;
     private String lastUrl;
     private String lastScreenshot;
     private final AtomicBoolean qrInProgress = new AtomicBoolean(false);
     
     @Getter
     private String savedAuthToken;
+    
+    @Getter
+    private String savedUserFingerprint;
 
-    @SneakyThrows
-    @PostConstruct
-    public void init() {
+    private void initDriver() {
         log.info("[INIT] Запуск VTB аутентификации");
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
@@ -74,7 +73,6 @@ public class VtbAuthService implements AutoCloseable {
         lastUrl = driver.getCurrentUrl();
         waitRootNotEmpty();
         log.info("[INIT] Страница загружена");
-        handleQrLogin();
     }
 
     private void waitRootNotEmpty() {
@@ -99,7 +97,10 @@ public class VtbAuthService implements AutoCloseable {
     }
 
     public State getState() {
-        String url = driver.getCurrentUrl().split("\\?")[0];
+        if (driver == null) throw new IllegalStateException("Driver is not initialized");
+        String fullUrl = driver.getCurrentUrl();
+        int qIndex = fullUrl.indexOf('?');
+        String url = qIndex >= 0 ? fullUrl.substring(0, qIndex) : fullUrl;
         if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
         if (url.equals(PAGE_LOGIN) || driver.getCurrentUrl().contains("/login")) return State.LOGIN_QR;
         if (url.equals(PAGE_HOME) || driver.getCurrentUrl().contains("/home")) return State.PAGE_HOME;
@@ -108,26 +109,76 @@ public class VtbAuthService implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (driver != null) { driver.quit(); driver = null; }
+        if (driver != null) {
+            driver.quit();
+            driver = null;
+            wait = null;
+            webStorage = null;
+        }
     }
 
     @SneakyThrows
     public String getAuthToken() {
-        if (!getState().isAuth()) throw new RuntimeException("Not authorized");
-        Map<String, String> auth = MAPPER.readValue(webStorage.getSessionStorage().getItem("@vtb/auth"), new TypeReference<>() {});
-        return auth.get("idToken");
+        // Если браузер закрыт (после QR авторизации), возвращаем сохраненный токен
+        if (savedAuthToken != null) {
+            return savedAuthToken;
+        }
+        // Иначе пытаемся получить из sessionStorage (когда браузер еще открыт)
+        if (webStorage == null) {
+            throw new IllegalStateException("WebStorage недоступен. Авторизация завершена, используйте savedAuthToken");
+        }
+        try {
+            String authItem = webStorage.getSessionStorage().getItem("@vtb/auth");
+            if (authItem == null) {
+                log.warn("[AUTH] Токен не найден в sessionStorage");
+                return null;
+            }
+            Map<String, String> auth = MAPPER.readValue(authItem, new TypeReference<>() {});
+            return auth.get("idToken");
+        } catch (Exception e) {
+            log.error("[AUTH] Ошибка получения токена: {}", e.getMessage());
+            return null;
+        }
     }
 
     @SneakyThrows
     public String getUserFingerprint() {
-        if (!getState().isAuth()) throw new RuntimeException("Not authorized");
-        return driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
+        // Если браузер закрыт (после QR авторизации), возвращаем сохраненный fingerprint
+        if (savedUserFingerprint != null) {
+            return savedUserFingerprint;
+        }
+        // Иначе пытаемся получить из cookie (когда браузер еще открыт)
+        if (driver == null) {
+            throw new IllegalStateException("Driver недоступен. Авторизация завершена, используйте savedUserFingerprint");
+        }
+        try {
+            return driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
+        } catch (Exception e) {
+            log.error("[FINGERPRINT] Ошибка получения: {}", e.getMessage());
+            return null;
+        }
     }
 
     // ==================== QR авторизация ====================
 
+    /**
+     * Начало QR авторизации. Запускает браузер и инициализирует процесс.
+     * Возвращает QR код URL для отображения.
+     */
     @SneakyThrows
-    public QrLoginData startQrLogin() {
+    public String startAuthorization() {
+        if (driver != null) {
+            log.warn("[AUTH] Браузер уже запущен, завершаю предыдущий сеанс");
+            driver.quit();
+            driver = null;
+        }
+        initDriver();
+        handleQrLogin();
+        return qrCodeUrl;
+    }
+
+    @SneakyThrows
+    private void startQrLogin() {
         log.info("[QR.1] Переход на страницу логина");
         driver.get(PAGE_LOGIN);
         lastUrl = driver.getCurrentUrl();
@@ -145,18 +196,17 @@ public class VtbAuthService implements AutoCloseable {
 
         log.info("[QR.4] Извлечение QR изображения");
         String qrBase64 = extractQrBase64();
-        if (qrBase64 == null) { log.error("[QR.4] Не удалось извлечь QR"); return new QrLoginData(null, null, null); }
+        if (qrBase64 == null) { log.error("[QR.4] Не удалось извлечь QR"); return; }
         log.debug("[QR.4] QR изображение извлечено, размер: {} символов", qrBase64.length());
 
         log.info("[QR.5] Парсинг QR кода из SVG");
         String qrContent = parseQrFromSvg(qrBase64);
-        if (qrContent == null) { log.error("[QR.5] Не удалось распарсить QR код"); return new QrLoginData(null, null, qrBase64); }
+        if (qrContent == null) { log.error("[QR.5] Не удалось распарсить QR код"); return; }
         log.info("[QR.5] QR код успешно распарсен");
 
         log.info("[QR.6] QR CODE URL: {}", qrContent);
         notifyService.notifyQrCodeParsed(qrContent);
-        qrAuthUrl = qrContent;
-        return new QrLoginData(null, null, qrContent);
+        qrCodeUrl = qrContent;
     }
 
     private String extractQrBase64() {
@@ -198,9 +248,12 @@ public class VtbAuthService implements AutoCloseable {
     @SneakyThrows
     public boolean waitForQrLogin() {
         log.info("[QR.WAIT] Ожидание сканирования QR кода (timeout: {} мс)", QR_TIMEOUT);
-        qrInProgress.set(true);
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < QR_TIMEOUT) {
+            if (driver == null) {
+                log.warn("[QR.WAIT] Браузер закрыт во время ожидания");
+                return false;
+            }
             String url = driver.getCurrentUrl();
             lastUrl = url;
             lastScreenshot = getScreenshot();
@@ -216,12 +269,20 @@ public class VtbAuthService implements AutoCloseable {
                     log.warn("[AUTH] Не удалось получить OAuth токен");
                 }
                 
+                // Сохраняем fingerprint перед закрытием браузера
+                try {
+                    String fingerprint = driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
+                    if (fingerprint != null) {
+                        savedUserFingerprint = fingerprint;
+                        log.info("[AUTH] User fingerprint сохранен: {}", fingerprint);
+                    }
+                } catch (Exception e) {
+                    log.warn("[AUTH] Не удалось сохранить fingerprint: {}", e.getMessage());
+                }
+                
                 // Закрываем браузер после успешной авторизации
                 log.info("[AUTH] Закрытие браузера после успешной авторизации");
-                if (driver != null) {
-                    driver.quit();
-                    driver = null;
-                }
+                close();
                 
                 qrInProgress.set(false);
                 return true;
@@ -236,6 +297,10 @@ public class VtbAuthService implements AutoCloseable {
 
     @SneakyThrows
     private String extractAuthToken() {
+        if (webStorage == null) {
+            log.warn("[AUTH] WebStorage недоступен (браузер закрыт)");
+            return null;
+        }
         try {
             Map<String, String> auth = MAPPER.readValue(webStorage.getSessionStorage().getItem("@vtb/auth"), new TypeReference<>() {});
             return auth.get("idToken");
@@ -250,15 +315,17 @@ public class VtbAuthService implements AutoCloseable {
             qrInProgress.set(true);
             log.info("[QR.HANDLER] Запуск QR авторизации");
             try {
-                QrLoginData data = startQrLogin();
-                notifyService.notifyQrLoginRequired(data.getQrCodeData());
+                startQrLogin();
+                notifyService.notifyQrLoginRequired(qrCodeUrl);
                 lastUrl = driver.getCurrentUrl();
                 lastScreenshot = getScreenshot();
                 new Thread(() -> {
                     try {
                         if (waitForQrLogin()) {
                             log.info("[QR.HANDLER] QR авторизация успешна!");
-                            log.info("[QR.HANDLER] Сохраненный токен: {}...", savedAuthToken.substring(0, Math.min(20, savedAuthToken.length())));
+                            if (savedAuthToken != null) {
+                                log.info("[QR.HANDLER] Сохраненный токен: {}...", savedAuthToken.substring(0, Math.min(20, savedAuthToken.length())));
+                            }
                         } else {
                             log.warn("[QR.HANDLER] QR авторизация отменена");
                             cancelQrLogin();
@@ -282,7 +349,7 @@ public class VtbAuthService implements AutoCloseable {
     public void cancelQrLogin() {
         log.info("[QR.CANCEL] Отмена QR авторизации");
         qrInProgress.set(false);
-        qrAuthUrl = null;
+        qrCodeUrl = null;
         if (driver != null) {
             lastUrl = driver.getCurrentUrl();
             lastScreenshot = getScreenshot();
