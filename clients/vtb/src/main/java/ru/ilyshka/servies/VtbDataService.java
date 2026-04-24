@@ -12,7 +12,6 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import ru.ilyshka.configuration.VpbProperties;
-import ru.ilyshka.dto.State;
 import ru.ilyshka.dto.Wallet;
 import ru.ilyshka.dto.WalletType;
 

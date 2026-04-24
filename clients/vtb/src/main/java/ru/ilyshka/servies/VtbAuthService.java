@@ -20,12 +20,12 @@ import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 import ru.ilyshka.configuration.VpbProperties;
-import ru.ilyshka.dto.State;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,6 +41,7 @@ public class VtbAuthService implements AutoCloseable {
     private static final String PAGE_HOME = "https://online.vtb.ru/home";
     private static final int QR_TIMEOUT = 300000;
     private static final Pattern PNG_PATTERN = Pattern.compile("data:image/png;base64,([A-Za-z0-9+/=]+)");
+    private static final int TOKEN_VALIDITY_CHECK_INTERVAL = 60000; // Проверять токен не чаще 1 минуты
 
     private final VpbProperties properties;
     private final NotifyService notifyService;
@@ -57,6 +58,12 @@ public class VtbAuthService implements AutoCloseable {
     
     @Getter
     private String savedUserFingerprint;
+    
+    // Время последней проверки токена (для избежания частых проверок)
+    private long lastTokenCheckTime = 0;
+    
+    // Кэш валидности токена
+    private Boolean cachedTokenValid = null;
 
     private void initDriver() {
         log.info("[INIT] Запуск VTB аутентификации");
@@ -88,18 +95,87 @@ public class VtbAuthService implements AutoCloseable {
     }
 
 
-    public State getState() {
-        // Если браузер закрыт после успешной авторизации — возвращаем AUTH
+    /**
+     * Возвращает true если пользователь авторизован и токен валиден
+     */
+    public boolean isAuthorized() {
+        // Если браузер закрыт после успешной авторизации — проверяем токен
         if (driver == null) {
-            return savedAuthToken != null ? State.AUTH : State.LOGIN_QR;
+            if (savedAuthToken != null) {
+                return isAuthTokenValid();
+            }
+            return false;
         }
-        String fullUrl = driver.getCurrentUrl();
-        int qIndex = fullUrl.indexOf('?');
-        String url = qIndex >= 0 ? fullUrl.substring(0, qIndex) : fullUrl;
-        if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-        if (url.equals(PAGE_LOGIN) || driver.getCurrentUrl().contains("/login")) return State.LOGIN_QR;
-        if (url.equals(PAGE_HOME) || driver.getCurrentUrl().contains("/home")) return State.PAGE_HOME;
-        throw new RuntimeException("Unknown page: " + driver.getCurrentUrl());
+        // Браузер открыт — проверяем URL
+        try {
+            String fullUrl = driver.getCurrentUrl();
+            return fullUrl.contains("/home") || fullUrl.contains("/dashboard");
+        } catch (Exception e) {
+            log.warn("[AUTH] Ошибка проверки авторизации: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Проверяет, валиден ли сохраненный JWT токен (не истек ли)
+     */
+    private boolean isAuthTokenValid() {
+        if (savedAuthToken == null) return false;
+        
+        // Проверяем кэш (чтобы не декодировать токен на каждый чих)
+        if (cachedTokenValid != null && System.currentTimeMillis() - lastTokenCheckTime < TOKEN_VALIDITY_CHECK_INTERVAL) {
+            return cachedTokenValid;
+        }
+        
+        lastTokenCheckTime = System.currentTimeMillis();
+        
+        try {
+            // JWT состоит из 3 частей: header.payload.signature
+            String[] parts = savedAuthToken.split("\\.");
+            if (parts.length != 3) {
+                log.warn("[TOKEN] Неверный формат JWT токена");
+                cachedTokenValid = false;
+                return false;
+            }
+            
+            // Декодируем payload (вторая часть)
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            Map<String, Object> claims = MAPPER.readValue(payload, Map.class);
+            
+            // Проверяем expiration (exp)
+            Object expObj = claims.get("exp");
+            if (expObj == null) {
+                log.warn("[TOKEN] В токене нет поля exp");
+                cachedTokenValid = false;
+                return false;
+            }
+            
+            long exp = ((Number) expObj).longValue();
+            boolean valid = Instant.now().getEpochSecond() < exp;
+            cachedTokenValid = valid;
+            
+            if (!valid) {
+                long expiredSeconds = Instant.now().getEpochSecond() - exp;
+                log.warn("[TOKEN] Токен истек {} секунд назад", expiredSeconds);
+            } else {
+                long remainingSeconds = exp - Instant.now().getEpochSecond();
+                log.debug("[TOKEN] Токен валиден, осталось {} секунд", remainingSeconds);
+            }
+            
+            return valid;
+        } catch (Exception e) {
+            log.error("[TOKEN] Ошибка проверки токена: {}", e.getMessage());
+            cachedTokenValid = false;
+            return false;
+        }
+    }
+    
+    /**
+     * Сбрасывает кэш валидности токена (вызывается при успешной авторизации)
+     */
+    private void resetTokenValidityCache() {
+        cachedTokenValid = null;
+        lastTokenCheckTime = 0;
     }
 
     @Override

@@ -14,11 +14,7 @@ import java.time.YearMonth;
 @Component
 @RequiredArgsConstructor
 public class VtbService {
-    private final VtbAuthService authService;
     private final VtbDataService dataService;
-    private final FinanceEventService eventService;
-    // Обновить heathcheck
-
 
     @SneakyThrows
     public void startActions() {
