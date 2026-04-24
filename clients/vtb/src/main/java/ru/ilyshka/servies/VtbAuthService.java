@@ -27,7 +27,6 @@ import ru.ilyshka.dto.State;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.net.URI;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
@@ -43,10 +42,10 @@ public class VtbAuthService implements AutoCloseable {
     private static final String PAGE_LOGIN = "https://online.vtb.ru/login";
     private static final String PAGE_HOME = "https://online.vtb.ru/home";
     
-    // Константы авторизации по QR-коду
-    private static final int QR_MAX_WAIT_MS = 300000; // 5 минут
-    private static final int PAGE_LOAD_CHECK_INTERVAL = 2000; // 2 секунды между проверками загрузки
-    // Regex для извлечения embedded PNG из SVG
+    // QR авторизация константы
+    private static final int QR_MAX_WAIT_MS = 300000;
+    private static final int PAGE_LOAD_CHECK_INTERVAL = 2000;
+    // SVG содержит embedded PNG: xlink:href="data:image/png;base64,..."
     private static final Pattern PNG_FROM_SVG_PATTERN = Pattern.compile("data:image/png;base64,([A-Za-z0-9+/=]+)");
 
     private final VpbProperties properties;
@@ -56,7 +55,6 @@ public class VtbAuthService implements AutoCloseable {
     private Wait<WebDriver> wait;
     private WebStorage webStorage;
     
-    // URL из QR-кода для ожидания авторизации
     private String qrAuthUrl;
     private AtomicBoolean qrLoginInProgress;
 
@@ -66,7 +64,6 @@ public class VtbAuthService implements AutoCloseable {
         qrLoginInProgress = new AtomicBoolean(false);
         
         ChromeOptions options = new ChromeOptions();
-
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
@@ -174,30 +171,31 @@ public class VtbAuthService implements AutoCloseable {
         return driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
     }
     
+    // ==================== QR авторизация (SVG → embedded PNG → QR) ====================
+    
     @SneakyThrows
     public QrLoginData startQrLogin() {
-        log.info("Начало QR авторизации");
+        log.info("🚀 Начало QR авторизации");
         
+        // Переход на страницу входа
         driver.get(PAGE_LOGIN);
         waitRootNotEmpty();
         sleep();
         
+        // Нажатие кнопки QR входа
         try {
             WebElement qrButton = driver.findElement(By.cssSelector("[data-test-id='auth-by-qr-button']"));
             qrButton.click();
-            log.info("Нажата кнопка QR входа");
+            log.info("🔘 Нажата кнопка QR входа");
         } catch (Exception e) {
-            log.warn("Не удалось найти кнопку QR, пробуем альтернативный способ");
-            try {
-                WebElement qrButton = driver.findElement(By.xpath("//button[contains(text(), 'QR')]"));
-                qrButton.click();
-                log.info("Нажата кнопка QR входа (по тексту)");
-            } catch (Exception ex) {
-                throw new RuntimeException("Кнопка QR не найдена, возможно страница уже показывает QR");
-            }
+            log.warn("Кнопка QR не найдена, пробуем по тексту");
+            WebElement qrButton = driver.findElement(By.xpath("//button[contains(text(), 'QR')]"));
+            qrButton.click();
+            log.info("🔘 Нажата кнопка QR входа (по тексту)");
         }
         sleep();
         
+        // Ожидание страницы QR-кода
         wait.until(d -> {
             try {
                 WebElement main = d.findElement(By.tagName("main"));
@@ -207,17 +205,54 @@ public class VtbAuthService implements AutoCloseable {
                 return false;
             }
         });
-        log.info("Страница QR-кода загружена");
+        log.info("📄 Страница QR-кода загружена");
         
-        String qrBase64 = null;
+        // Извлечение base64 изображения QR-кода
+        String qrBase64 = extractQrBase64();
+        if (qrBase64 == null || qrBase64.isEmpty()) {
+            log.error("❌ Не удалось извлечь base64 изображение QR-кода");
+            return new QrLoginData(null, null, null);
+        }
+        log.info("🖼️ Извлечено base64 изображение QR-кода");
+        
+        // Парсинг QR кода из SVG (VTB всегда использует SVG с embedded PNG)
+        String qrContent = parseQrCodeFromSvg(qrBase64);
+        
+        if (qrContent == null || qrContent.isEmpty()) {
+            log.warn("❌ Не удалось распарсить QR код из изображения");
+            return new QrLoginData(null, null, qrBase64);
+        }
+        log.info("✅ QR код успешно распарсен: {}", qrContent);
+        
+        // Отправка распарсенного QR текста в события
+        notifyService.notifyQrCodeParsed(qrContent);
+        
+        // Сохранение URL для ожидания авторизации
+        qrAuthUrl = qrContent;
+        log.info("🔗 QR CODE URL (ссылка для авторизации): {}", qrAuthUrl);
+        
+        // Ожидание перехода на главную страницу
+        waitForHomePage();
+        
+        log.info("✅ QR авторизация инициализирована, ожидаем переход на главную страницу");
+        
+        return new QrLoginData(null, null, qrContent);
+    }
+    
+    /**
+     * Извлекает base64 изображение QR-кода из DOM элемента.
+     */
+    private String extractQrBase64() {
         try {
             WebElement qrImageElement = wait.until(d -> {
                 try {
+                    // Пробуем найти по alt атрибуту
                     WebElement img = d.findElement(By.cssSelector("img[alt=\"QR-код\"]"));
                     if (img.isDisplayed()) return img;
                 } catch (Exception ignore) {}
                 
                 try {
+                    // Пробуем найти по src содержащему qr
                     WebElement img = d.findElement(By.cssSelector("img[src*=\"qr\"], img[src*=\"QR\"]"));
                     if (img.isDisplayed()) return img;
                 } catch (Exception ignore) {}
@@ -229,48 +264,83 @@ public class VtbAuthService implements AutoCloseable {
                 String qrSrc = qrImageElement.getAttribute("src");
                 
                 if (qrSrc != null && !qrSrc.isEmpty() && qrSrc.startsWith("data:image")) {
-                    qrBase64 = qrSrc;
-                    log.info("Извлечено base64 изображение QR-кода из src атрибута");
+                    log.info("📸 Извлечено base64 изображение QR-кода из src атрибута");
+                    return qrSrc;
                 } else {
+                    // Фоллбэк на скриншот страницы
                     TakesScreenshot takesScreenshot = (TakesScreenshot) new Augmenter().augment(driver);
-                    qrBase64 = takesScreenshot.getScreenshotAs(OutputType.BASE64);
                     log.warn("Data URL не найден, используем скриншот страницы");
+                    return takesScreenshot.getScreenshotAs(OutputType.BASE64);
                 }
             }
         } catch (Exception e) {
             log.warn("Не удалось найти элемент QR-кода: {}", e.getMessage());
         }
         
-        if (qrBase64 == null || qrBase64.isEmpty()) {
-            log.error("Не удалось извлечь base64 изображение QR-кода");
-            return new QrLoginData(null, null, null);
-        }
-        log.info("Извлечено base64 изображение QR-кода");
-        
-        String qrContent = parseQrCodeFromBase64(qrBase64);
-        
-        if (qrContent == null || qrContent.isEmpty()) {
-            log.warn("Не удалось распарсить QR код из изображения");
-            return new QrLoginData(null, null, qrBase64);
-        }
-        log.info("QR код успешно распарсен: {}", qrContent);
-        
-        notifyService.notifyQrCodeParsed(qrContent);
-        
-        qrAuthUrl = qrContent;
-        log.info("🔗 QR CODE URL (ссылка для авторизации): {}", qrAuthUrl);
-        
-        waitForHomePage();
-        
-        log.info("QR авторизация инициализирована, ожидаем переход на главную страницу");
-        
-        return new QrLoginData(null, null, qrContent);
+        return null;
     }
     
+    /**
+     * Парсит QR код из SVG (VTB всегда использует SVG с embedded PNG).
+     * SVG формат: <svg><image xlink:href="data:image/png;base64,..."/></svg>
+     */
+    @SneakyThrows
+    private String parseQrCodeFromSvg(String qrBase64) {
+        try {
+            // Извлекаем base64 данные (убираем data:image/svg+xml;base64, префикс)
+            String base64Data = qrBase64.contains(",") ? qrBase64.substring(qrBase64.indexOf(",") + 1) : qrBase64;
+            byte[] svgBytes = Base64.getDecoder().decode(base64Data);
+            
+            log.info("🔍 QR PARSE: SVG формат, размер={} байт", svgBytes.length);
+            
+            // Конвертируем SVG в строку для поиска embedded PNG
+            String svgContent = new String(svgBytes, "UTF-8");
+            log.info("🔍 SVG размер: {} символов", svgContent.length());
+            
+            // Ищем embedded PNG с помощью regex
+            Matcher matcher = PNG_FROM_SVG_PATTERN.matcher(svgContent);
+            if (!matcher.find()) {
+                log.error("❌ Embedded PNG не найден в SVG");
+                return null;
+            }
+            
+            String pngBase64 = matcher.group(1);
+            log.info("🔍 Найдено embedded PNG в SVG, длина base64: {} символов", pngBase64.length());
+            
+            // Декодируем PNG
+            byte[] pngBytes = Base64.getDecoder().decode(pngBase64);
+            log.info("🔍 Декодировано PNG: {} байт", pngBytes.length);
+            
+            // Читаем PNG в BufferedImage
+            BufferedImage pngImage = ImageIO.read(new ByteArrayInputStream(pngBytes));
+            if (pngImage == null) {
+                log.error("❌ Не удалось прочитать PNG");
+                return null;
+            }
+            
+            log.info("🔍 PNG успешно прочитан: width={}, height={}", pngImage.getWidth(), pngImage.getHeight());
+            
+            // Декодируем QR код с помощью ZXing
+            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(
+                new BufferedImageLuminanceSource(pngImage)
+            ));
+            
+            Result result = new MultiFormatReader().decode(bitmap);
+            return result.getText();
+            
+        } catch (Exception e) {
+            log.error("❌ Ошибка парсинга QR кода: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Ожидает авторизации пользователя.
+     */
     @SneakyThrows
     public boolean waitForQrLogin() {
-        log.info("Ожидание авторизации через QR (URL: {})", qrAuthUrl);
-        log.info("Ожидание сканирования QR кода (timeout: {} ms)", QR_MAX_WAIT_MS);
+        log.info("⏳ Ожидание авторизации через QR (URL: {})", qrAuthUrl);
+        log.info("⏳ Ожидание сканирования QR кода (timeout: {} ms)", QR_MAX_WAIT_MS);
         qrLoginInProgress.set(true);
         
         long startTime = System.currentTimeMillis();
@@ -278,19 +348,21 @@ public class VtbAuthService implements AutoCloseable {
             try {
                 String currentUrl = driver.getCurrentUrl();
                 
+                // Проверка: URL изменился (пользователь перешел по ссылке)
                 if (!currentUrl.contains("/login") && !currentUrl.contains("/auth")) {
-                    log.info("Обнаружена смена URL - пользователь авторизуется");
+                    log.info("✅ Обнаружена смена URL - пользователь авторизуется");
                     sleep();
                     waitRootNotEmpty();
                     qrLoginInProgress.set(false);
                     return true;
                 }
                 
+                // Проверка: индикаторы успеха на странице
                 try {
                     WebElement main = driver.findElement(By.tagName("main"));
                     String mainText = main.getText();
                     if (mainText.contains("Добро пожаловать") || mainText.contains("Личный кабинет")) {
-                        log.info("Обнаружено сообщение о успешном входе");
+                        log.info("✅ Обнаружено сообщение о успешном входе");
                         qrLoginInProgress.set(false);
                         return true;
                     }
@@ -303,7 +375,7 @@ public class VtbAuthService implements AutoCloseable {
             Thread.sleep(PAGE_LOAD_CHECK_INTERVAL);
         }
         
-        log.warn("Таймаут ожидания QR кода");
+        log.warn("⏰ Таймаут ожидания QR кода");
         qrLoginInProgress.set(false);
         return false;
     }
@@ -311,7 +383,7 @@ public class VtbAuthService implements AutoCloseable {
     private void handleQrLogin() {
         if (!qrLoginInProgress.get()) {
             qrLoginInProgress.set(true);
-            log.info("Запуск QR авторизации из checkActivity");
+            log.info("🚀 Запуск QR авторизации из checkActivity");
             try {
                 QrLoginData qrData = startQrLogin();
                 notifyService.notifyQrLoginRequired(qrData.getQrCodeData());
@@ -319,13 +391,13 @@ public class VtbAuthService implements AutoCloseable {
                 new Thread(() -> {
                     try {
                         if (waitForQrLogin()) {
-                            log.info("QR авторизация успешна!");
+                            log.info("✅ QR авторизация успешна!");
                         } else {
                             cancelQrLogin();
                             notifyService.notifyQrLoginExpired();
                         }
                     } catch (Exception e) {
-                        log.error("Ошибка QR авторизации: {}", e.getMessage());
+                        log.error("❌ Ошибка QR авторизации: {}", e.getMessage());
                         cancelQrLogin();
                         notifyService.notifyError("QR авторизация failed: " + e.getMessage(), 
                                 driver.getCurrentUrl(), 
@@ -335,7 +407,7 @@ public class VtbAuthService implements AutoCloseable {
                     }
                 }).start();
             } catch (Exception e) {
-                log.error("Ошибка инициализации QR: {}", e.getMessage());
+                log.error("❌ Ошибка инициализации QR: {}", e.getMessage());
                 qrLoginInProgress.set(false);
                 cancelQrLogin();
             }
@@ -344,7 +416,7 @@ public class VtbAuthService implements AutoCloseable {
     
     @SneakyThrows
     public void cancelQrLogin() {
-        log.info("Отмена QR авторизации");
+        log.info("❌ Отмена QR авторизации");
         qrLoginInProgress.set(false);
         qrAuthUrl = null;
         driver.get(PAGE_LOGIN);
@@ -360,7 +432,6 @@ public class VtbAuthService implements AutoCloseable {
             }
             waitFindElement(By.xpath("//p[starts-with(.,'Мастер-счет в рублях')]"));
         }
-
         sleep();
         checkActivity();
     }
@@ -375,119 +446,7 @@ public class VtbAuthService implements AutoCloseable {
             }
         });
     }
-    
-    @SneakyThrows
-    private String parseQrCodeFromBase64(String base64Image) {
-        try {
-            String mimeType = "image/png";
-            String base64Data = base64Image;
-            if (base64Image.contains(",")) {
-                String header = base64Image.substring(0, base64Image.indexOf(","));
-                if (header.contains("svg")) {
-                    mimeType = "image/svg+xml";
-                } else if (header.contains("jpeg") || header.contains("jpg")) {
-                    mimeType = "image/jpeg";
-                } else if (header.contains("png")) {
-                    mimeType = "image/png";
-                }
-                base64Data = base64Image.substring(base64Image.indexOf(",") + 1);
-            }
-            
-            log.debug("Формат QR изображения: {}, длина base64: {} символов", mimeType, base64Data.length());
-            
-            byte[] imageBytes = Base64.getDecoder().decode(base64Data);
-            log.debug("Декодировано {} байт", imageBytes.length);
-            log.info("🔍 QR PARSE DEBUG: mimeType={}, байт={}, первые 100 символов: {}", 
-                mimeType, imageBytes.length, 
-                imageBytes.length > 100 ? new String(imageBytes, 0, 100, "UTF-8") : new String(imageBytes, "UTF-8"));
-            
-            BufferedImage bufferedImage;
-            
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-            bufferedImage = ImageIO.read(inputStream);
-            
-            if (bufferedImage == null) {
-                log.warn("Не удалось прочитать изображение через ImageIO, пробуем альтернативный способ");
-                log.warn("Детали: длина байт={}, mimeType={}, первые 500 байт: {}", 
-                    imageBytes.length, mimeType, 
-                    imageBytes.length > 500 ? new String(imageBytes, 0, 500, "UTF-8") : new String(imageBytes, "UTF-8"));
-                
-                if (mimeType.equals("image/svg+xml")) {
-                    log.info("Обнаружен SVG формат, пытаемся извлечь embedded PNG");
-                    log.info("SVG содержимое (первые 1000 символов): {}", 
-                        new String(imageBytes, "UTF-8").length() > 1000 ? 
-                            new String(imageBytes, 0, 1000, "UTF-8") : 
-                            new String(imageBytes, "UTF-8"));
-                    
-                    bufferedImage = extractPngFromSvg(imageBytes);
-                    
-                    if (bufferedImage == null) {
-                        log.warn("Не удалось извлечь PNG из SVG, пробуем Batik конвертацию");
-                        bufferedImage = convertSvgToBufferedImage(imageBytes);
-                    }
-                }
-                
-                if (bufferedImage == null) {
-                    log.error("Не удалось конвертировать изображение в BufferedImage");
-                    return null;
-                }
-            }
-            
-            log.debug("BufferedImage создано успешно: width={}, height={}, type={}", 
-                bufferedImage.getWidth(), bufferedImage.getHeight(), bufferedImage.getType());
-            
-            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(
-                new BufferedImageLuminanceSource(bufferedImage)
-            ));
-            
-            Result result = new MultiFormatReader().decode(bitmap);
-            return result.getText();
-            
-        } catch (Exception e) {
-            log.error("Ошибка при парсинге QR кода: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-    
-    /**
-     * Извлекает embedded PNG изображение из SVG.
-     * SVG VTB содержит встроенный PNG в формате: xlink:href="data:image/png;base64,..."
-     */
-    @SneakyThrows
-    private BufferedImage extractPngFromSvg(byte[] svgBytes) {
-        try {
-            String svgContent = new String(svgBytes, "UTF-8");
-            log.info("🔍 Пытаемся извлечь embedded PNG из SVG (длина={}, {} символов)", svgContent.length(), svgContent.contains("data:image/png;base64,"));
-            
-            Matcher matcher = PNG_FROM_SVG_PATTERN.matcher(svgContent);
-            if (matcher.find()) {
-                String pngBase64 = matcher.group(1);
-                log.info("🔍 Найдено embedded PNG в SVG, длина base64: {} символов", pngBase64.length());
-                
-                byte[] pngBytes = Base64.getDecoder().decode(pngBase64);
-                log.info("🔍 Декодировано PNG: {} байт", pngBytes.length);
-                
-                BufferedImage pngImage = ImageIO.read(new ByteArrayInputStream(pngBytes));
-                log.info("🔍 PNG успешно прочитан: width={}, height={}", 
-                    pngImage != null ? pngImage.getWidth() : 0,
-                    pngImage != null ? pngImage.getHeight() : 0);
-                return pngImage;
-            }
-            
-            log.warn("🔍 Embedded PNG не найден в SVG");
-            return null;
-        } catch (Exception e) {
-            log.error("❌ Ошибка извлечения PNG из SVG: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-    
-    @SneakyThrows
-    private BufferedImage convertSvgToBufferedImage(byte[] svgBytes) {
-        log.error("❌ Batik не поддерживается, xerces недоступен");
-        return null;
-    }
-    
+
     @SneakyThrows
     private void waitForHomePage() {
         try {
