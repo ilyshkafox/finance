@@ -14,7 +14,8 @@ import java.time.YearMonth;
 @Component
 @RequiredArgsConstructor
 public class VtbService {
-    private final VtbSeleniumClient client;
+    private final VtbAuthService authService;
+    private final VtbDataService dataService;
     private final FinanceEventService eventService;
     // Обновить heathcheck
 
@@ -26,9 +27,9 @@ public class VtbService {
     @Scheduled(cron = "${app.check-cron}")
     void checkActivity() {
         log.info("Checking activity...");
-        client.checkActivity();
+        authService.checkActivity();
         try {
-            if (client.getState().isAuth()) {
+            if (authService.getState().isAuth()) {
                 eventService.pushHatchCheck(HealthCheckMessage.Status.OK, "OK");
             } else {
                 eventService.pushHatchCheck(HealthCheckMessage.Status.WARNING, "Требуеться авторизация");
@@ -48,7 +49,7 @@ public class VtbService {
 
         for (YearMonth month = currentMonth; !month.isBefore(startMonth); month = month.minusMonths(1)) {
             log.info("Processing month: {}", month);
-            client.getHistory(month);
+            dataService.getHistory(month);
             int randomNum = (int) (Math.random() * 1000);
             Thread.sleep(1000 + randomNum);
         }
@@ -56,4 +57,3 @@ public class VtbService {
 
 
 }
-
