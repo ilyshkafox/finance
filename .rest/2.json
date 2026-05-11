@@ -1,0 +1,103 @@
+{
+  "transactions": [
+    {
+      "transactionSystemId": "OPENWAY_VTB_CHAIN",
+      "transactionId": "5496303366225"
+    },
+    {
+      "transactionSystemId": "OPENWAY_VTB",
+      "transactionId": "613114910002"
+    }
+  ],
+  "rrn": "613114910002",
+  "card": "220024******6698",
+  "cardProductId": "32FD1CE294E94D208E6B6F3976CFE1D4",
+  "account": "*3314",
+  "accountProductId": "162A7B0CD0304CC3A00DB1B64451D612",
+  "merchant": {
+    "mcc": "5811",
+    "title": "pizzaricca",
+    "originalName": "pizzaricca"
+  },
+  "parentCategory": {
+    "id": 11,
+    "logo": "restaurants_category",
+    "name": "Кафе и рестораны",
+    "colour": {
+      "light": "#ff527d",
+      "dark": "#ff527d"
+    }
+  },
+  "operationName": "pizzaricca",
+  "fullOperationName": "pizzaricca",
+  "debet": true,
+  "transactionDate": "2026-05-11T17:16:54.000",
+  "processedDate": "2026-05-11T17:16:54.000",
+  "operationAmount": {
+    "currency": "RUB",
+    "sum": 2040.0
+  },
+  "transactionAmount": {
+    "currency": "RUB",
+    "sum": 2040.0
+  },
+  "isHold": true,
+  "status": "Declined",
+  "eventTime": "2026-05-11T17:16:54.000",
+  "properties": [
+    {
+      "key": "chainId",
+      "value": "5496303366225"
+    },
+    {
+      "key": "operationIdMain",
+      "value": "A5496303366225G8219064125"
+    },
+    {
+      "key": "acquirerId",
+      "value": "70802007001"
+    },
+    {
+      "key": "resultCode",
+      "value": "54"
+    },
+    {
+      "key": "terminalId",
+      "value": "25349094"
+    },
+    {
+      "key": "merchantId",
+      "value": "200000001293892"
+    },
+    {
+      "key": "operationId",
+      "value": "5496303366225"
+    },
+    {
+      "key": "integrationSource_STREAMING_OPENWAY_VTB",
+      "value": "5496303366225"
+    },
+    {
+      "key": "transactionTypeCode",
+      "value": "R1"
+    },
+    {
+      "key": "integrationSource_OPENWAY_VTB",
+      "value": "5496303366225"
+    },
+    {
+      "key": "terminalCity",
+      "value": "Nizhniy Novgo"
+    },
+    {
+      "key": "terminalCountry",
+      "value": "RUS"
+    }
+  ],
+  "operationDate": "2026-05-11T17:16:54.000",
+  "operationCode": "R1",
+  "chainId": "ae48b059-027e-4822-8eb4-89761c432a8a",
+  "operationId": "8f8b3b0e-5ce9-43a5-8104-42771df645bd",
+  "internalId": "5496303366225",
+  "operationType": "Оплата товаров и услуг"
+}

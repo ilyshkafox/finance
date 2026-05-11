@@ -23,13 +23,16 @@ public class VtbJsonToCsvConverter {
         }
 
         List<Path> jsonFiles = new ArrayList<>();
-        if (Files.isDirectory(inputPath)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputPath, "*.json")) {
-                stream.forEach(jsonFiles::add);
-            }
-        } else {
-            jsonFiles.add(inputPath);
-        }
+//        if (Files.isDirectory(inputPath)) {
+//            try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputPath, "*.json")) {
+//                stream.forEach(jsonFiles::add);
+//            }
+//        } else {
+//            jsonFiles.add(inputPath);
+//        }
+
+        jsonFiles.add(inputPath.resolve("2026-05.json"));
+//        jsonFiles.add(inputPath.resolve("2026-04.json"));
 
         if (jsonFiles.isEmpty()) {
             System.err.println("Не найдено JSON-файлов в " + inputPath);
@@ -67,6 +70,10 @@ public class VtbJsonToCsvConverter {
             }
 
             List<JsonNode> operations = new ArrayList<>();
+
+            if("Declined".equalsIgnoreCase(root.get("status").asText())){
+                continue;
+            }
 
             if (root.has("operations") && root.get("operations").isArray()) {
                 root.get("operations").forEach(operations::add);

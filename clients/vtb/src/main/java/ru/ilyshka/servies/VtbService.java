@@ -20,7 +20,8 @@ public class VtbService {
     public void startActions() {
         log.info("Start Actions...");
 
-        YearMonth startMonth = YearMonth.of(2023, 10);
+//        YearMonth startMonth = YearMonth.of(2023, 10);
+        YearMonth startMonth = YearMonth.of(2026, 4);
         YearMonth currentMonth = YearMonth.now();
 
         for (YearMonth month = currentMonth; !month.isBefore(startMonth); month = month.minusMonths(1)) {

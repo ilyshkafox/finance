@@ -69,6 +69,8 @@ public class FireflySyncService {
         initializeAccountIds();
         Path inputPath = Paths.get(jsonFolderPath);
         List<Path> jsonFiles = new ArrayList<>();
+//        jsonFiles.add(inputPath.resolve("2026-05.json"));
+//        jsonFiles.add(inputPath.resolve("2026-04.json"));
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputPath, "*.json")) {
             stream.forEach(jsonFiles::add);
         }
@@ -143,6 +145,7 @@ public class FireflySyncService {
                         lineNumber, file.getFileName(), line);
                 continue;
             }
+
             if (op.has("operations") && op.get("operations").isArray()) {
                 for (JsonNode subOp : op.get("operations")) {
                     processOperation(subOp);

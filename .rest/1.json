@@ -1,0 +1,147 @@
+{
+  "transactions": [
+    {
+      "transactionSystemId": "OPENWAY_VTB_CHAIN",
+      "transactionId": "5496304832425"
+    },
+    {
+      "transactionSystemId": "OPENWAY_VTB",
+      "transactionId": "613114899716265212"
+    }
+  ],
+  "rrn": "613114899716",
+  "authorizationCode": "265212",
+  "card": "220024******6698",
+  "cardProductId": "32FD1CE294E94D208E6B6F3976CFE1D4",
+  "account": "*3314",
+  "accountProductId": "162A7B0CD0304CC3A00DB1B64451D612",
+  "merchant": {
+    "mcc": "5811",
+    "title": "pizzaricca",
+    "originalName": "pizzaricca"
+  },
+  "parentCategory": {
+    "id": 11,
+    "logo": "restaurants_category",
+    "name": "Кафе и рестораны",
+    "colour": {
+      "light": "#ff527d",
+      "dark": "#ff527d"
+    }
+  },
+  "operationName": "pizzaricca",
+  "fullOperationName": "pizzaricca",
+  "debet": true,
+  "transactionDate": "2026-05-11T17:17:26.000",
+  "processedDate": "2026-05-11T17:17:26.000",
+  "operationAmount": {
+    "currency": "RUB",
+    "sum": 2040.0
+  },
+  "transactionAmount": {
+    "currency": "RUB",
+    "sum": 2040.0
+  },
+  "isHold": true,
+  "bonus": {
+    "id": "CashBack",
+    "name": "Рубли",
+    "unitsDescription": "Р",
+    "amount": 0.0,
+    "isAccrued": true
+  },
+  "status": "Active",
+  "eventTime": "2026-05-11T17:17:26.000",
+  "properties": [
+    {
+      "key": "operationIdMain",
+      "value": "A5496304832425G8219064125"
+    },
+    {
+      "key": "acquirerId",
+      "value": "70802007001"
+    },
+    {
+      "key": "resultCode",
+      "value": "0"
+    },
+    {
+      "key": "merchantId",
+      "value": "200000001293892"
+    },
+    {
+      "key": "operationId",
+      "value": "5496304832425"
+    },
+    {
+      "key": "integrationSource_STREAMING_OPENWAY_VTB",
+      "value": "5496304832425"
+    },
+    {
+      "key": "integrationSource_OPENWAY_VTB",
+      "value": "5496304832425"
+    },
+    {
+      "key": "includeInPos",
+      "value": "1"
+    },
+    {
+      "key": "terminalCity",
+      "value": "Nizhniy Novgo"
+    },
+    {
+      "key": "totalBonusAmt",
+      "value": "0"
+    },
+    {
+      "key": "actionType",
+      "value": "Authorization"
+    },
+    {
+      "key": "strimmingTimestamp",
+      "value": "1778509052310"
+    },
+    {
+      "key": "totalRate",
+      "value": "0"
+    },
+    {
+      "key": "chainId",
+      "value": "5496304832425"
+    },
+    {
+      "key": "terminalId",
+      "value": "25349094"
+    },
+    {
+      "key": "bonusAmt",
+      "value": "0"
+    },
+    {
+      "key": "bonus.bonusBalanceAmount",
+      "value": "0"
+    },
+    {
+      "key": "transactionType",
+      "value": "DT"
+    },
+    {
+      "key": "transactionTypeCode",
+      "value": "R1"
+    },
+    {
+      "key": "terminalCountry",
+      "value": "RUS"
+    },
+    {
+      "key": "status",
+      "value": "Undefined"
+    }
+  ],
+  "operationDate": "2026-05-11T17:17:26.000",
+  "operationCode": "R1",
+  "chainId": "9933707f-e950-4667-bc06-fd94e0a7c63a",
+  "operationId": "caba5fce-5127-4b34-9cea-a37a15de0b83",
+  "internalId": "5496304832425",
+  "operationType": "Оплата товаров и услуг"
+}
