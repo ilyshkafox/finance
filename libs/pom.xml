@@ -14,5 +14,6 @@
 
     <modules>
         <module>finance-libs-messages</module>
+        <module>temporal-interfaces</module>
     </modules>
 </project>
