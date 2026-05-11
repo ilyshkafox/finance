@@ -17,6 +17,7 @@
         <module>libs</module>
         <module>clients</module>
         <module>core</module>
+        <module>vtb-stub</module>
     </modules>
 
     <packaging>pom</packaging>

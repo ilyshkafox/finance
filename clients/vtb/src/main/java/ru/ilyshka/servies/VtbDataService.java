@@ -96,20 +96,27 @@ public class VtbDataService {
 
     @SneakyThrows
     public synchronized void getHistory(YearMonth yearMonth) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-
+        // Получаем сырые данные
         LocalDate fromDateTime = yearMonth.atDay(1);
         LocalDate toDateTime = yearMonth.atEndOfMonth();
+        List<Map<String, Object>> operations = getHistoryRaw(fromDateTime, toDateTime);
+        
+        // Сохраняем в файл
+        writeMapsAsJsonLines(operations, Path.of("E:\\Данные").resolve(yearMonth + ".json"));
+    }
 
-
+    /**
+     * Получить сырые транзакции из VTB API без сохранения в файл.
+     * Используется в Temporal workflow.
+     */
+    @SneakyThrows
+    public synchronized List<Map<String, Object>> getHistoryRaw(LocalDate fromDateTime, LocalDate toDateTime) {
         String authToken = authService.getAuthToken();
         String userFingerprint = authService.getUserFingerprint();
 
         final String url = "https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser" +
                 "?dateFrom=" + fromDateTime.toString() + "T00:00:00.000%2B03:00&dateTo=" + toDateTime.toString() + "T23:59:59.999%2B03:00";
 
-
-        // https://online.vtb.ru/msa/api-gw/private/history-hub/history-hub-homer/v1/history/byUser?dateFrom=2026-03-21T00:00:00.000%2B03:00&dateTo=2026-04-21T23:59:59.999%2B03:00
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add("Cookie", "USER_FINGERPRINT=" + userFingerprint);
@@ -127,9 +134,7 @@ public class VtbDataService {
         Map<String, Object> result = OBJECT_MAPPER.readValue(response.getBody(), new TypeReference<>() {
         });
 
-        List<Map<String, Object>> operations = (List<Map<String, Object>>) result.get("operations");
-
-        writeMapsAsJsonLines(operations, Path.of("E:\\Данные").resolve(yearMonth + ".json"));
+        return (List<Map<String, Object>>) result.get("operations");
     }
 
 
