@@ -1,7 +1,6 @@
 package ru.ilyshka.temporal.common;
 
 import io.temporal.activity.ActivityOptions;
-import io.temporal.common.retry.RetryOptions;
 import lombok.Builder;
 import lombok.Data;
 
@@ -56,36 +55,4 @@ public class BaseActivityOptions {
      */
     @Builder.Default
     private Integer retryMaximumAttempts = 3;
-
-    /**
-     * Создаёт ActivityOptions из этих параметров.
-     *
-     * @return сконфигурированные ActivityOptions
-     */
-    public ActivityOptions toActivityOptions() {
-        RetryOptions retryOptions = RetryOptions.newBuilder()
-                .setInitialInterval(retryInitialInterval)
-                .setMaximumInterval(retryMaximumInterval)
-                .setBackoffCoefficient(retryBackoffCoefficient)
-                .setMaximumAttempts(retryMaximumAttempts)
-                .build();
-
-        return ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(startToCloseTimeout)
-                .setTaskTimeout(taskTimeout)
-                .setTaskStartToCloseTimeout(taskStartToCloseTimeout)
-                .setRetryPolicy(retryOptions)
-                .build();
-    }
-
-    /**
-     * Создаёт ActivityOptions без retry (только таймауты).
-     *
-     * @return ActivityOptions без повторных попыток
-     */
-    public static ActivityOptions withoutRetry(Duration startToClose) {
-        return ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(startToClose)
-                .build();
-    }
 }

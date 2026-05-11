@@ -1,9 +1,6 @@
 package ru.ilyshka.temporal.finance.payment;
 
-import ru.ilyshka.temporal.result.WorkflowResult;
 import ru.ilyshka.temporal.workflow.BaseWorkflowInterface;
-import ru.ilyshka.temporal.workflow.WorkflowQuery;
-import ru.ilyshka.temporal.workflow.WorkflowSignal;
 
 /**
  * Workflow интерфейс для обработки финансовых платежей.
@@ -29,18 +26,15 @@ public interface PaymentWorkflow {
     /**
      * Метод для отмены платежа (signal).
      */
-    @WorkflowSignal(value = "cancel-payment", description = "Сигнал для отмены платежа")
     void cancelPayment(String paymentId, String reason);
 
     /**
      * Метод для запроса статуса платежа (query).
      */
-    @WorkflowQuery(value = "get-payment-status", description = "Запрос статуса платежа")
     String getPaymentStatus(String paymentId);
 
     /**
      * Метод для запроса текущей стадии платежа (query).
      */
-    @WorkflowQuery(value = "get-payment-stage", description = "Запрос текущей стадии платежа")
     String getPaymentStage(String paymentId);
 }
