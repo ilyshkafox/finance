@@ -1,5 +1,6 @@
 package ru.ilyshka.temporal.finance.vtb;
 
+import io.temporal.workflow.WorkflowInterface;
 import ru.ilyshka.temporal.activity.BaseActivityInterface;
 import ru.ilyshka.temporal.common.BaseActivityOptions;
 import ru.ilyshka.temporal.finance.vtb.model.AuthStatus;
@@ -12,12 +13,13 @@ import java.util.List;
  * Activity интерфейс для работы с VTB API.
  * Определяет контракты для получения транзакций и управления авторизацией.
  */
-@BaseActivityInterface(
-        value = "VTBActivities",
-        description = "Activities для работы с VTB API",
-        category = "vtb",
-        taskQueue = "vtb-tx-tasks"
-)
+//@BaseActivityInterface(
+//        value = "VTBActivities",
+//        description = "Activities для работы с VTB API",
+//        category = "vtb",
+//        taskQueue = "vtb-tx-tasks"
+//)
+@WorkflowInterface()
 public interface VTBActivities {
 
     /**

@@ -39,6 +39,8 @@ public class VTBTxTest {
             // Создаем options без health check timeout (deprecated)
             WorkflowServiceStubsOptions stubsOptions = WorkflowServiceStubsOptions.newBuilder()
                     .setTarget(TEMPORAL_HOST + ":" + TEMPORAL_PORT)
+                    .setEnableHttps(false)
+
                     .build();
 
             // Используем newServiceStubs для lazy connection (без immediate health check)

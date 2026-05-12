@@ -1,18 +1,8 @@
 package ru.ilyshka.temporal.finance.vtb;
 
-import ru.ilyshka.temporal.workflow.BaseWorkflowInterface;
+import io.temporal.workflow.WorkflowInterface;
 
-/**
- * Workflow интерфейс для авторизации в VTB через polling.
- * Генерирует ссылку для авторизации, отправляет её через Telegram,
- * затем опрашивает статус авторизации до завершения.
- */
-@BaseWorkflowInterface(
-        value = "VTBAUTHWorkflow",
-        description = "Workflow для авторизации в VTB через polling",
-        taskQueue = "vtb-auth-tasks",
-        workflowMethod = "startAuthorize"
-)
+@WorkflowInterface
 public interface VTBAUTHWorkflow {
 
     /**
