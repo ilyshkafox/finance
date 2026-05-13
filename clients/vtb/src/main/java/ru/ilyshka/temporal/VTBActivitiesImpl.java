@@ -2,11 +2,13 @@ package ru.ilyshka.temporal;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.temporal.spring.boot.ActivityImpl;
 import io.temporal.spring.boot.WorkflowImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import ru.ilyshka.servies.VtbAuthService;
 import ru.ilyshka.servies.VtbDataService;
 import ru.ilyshka.temporal.finance.vtb.VTBActivities;
@@ -20,9 +22,8 @@ import java.util.Map;
  * Реализация VTB Activities для Temporal workflow.
  * Интегрирует существующий VTB клиент (Selenium-based) с Temporal.
  */
+@Service
 @Slf4j
-@Component
-@WorkflowImpl(taskQueues = "vtb-tx-tasks")
 @RequiredArgsConstructor
 public class VTBActivitiesImpl implements VTBActivities {
 

@@ -1,5 +1,6 @@
 package ru.ilyshka.temporal.finance.vtb;
 
+import io.temporal.activity.ActivityInterface;
 import io.temporal.workflow.WorkflowInterface;
 import ru.ilyshka.temporal.activity.BaseActivityInterface;
 import ru.ilyshka.temporal.common.BaseActivityOptions;
@@ -19,7 +20,7 @@ import java.util.List;
 //        category = "vtb",
 //        taskQueue = "vtb-tx-tasks"
 //)
-@WorkflowInterface()
+@ActivityInterface
 public interface VTBActivities {
 
     /**
@@ -30,7 +31,6 @@ public interface VTBActivities {
      * @throws ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException если требуется авторизация
      */
     List<String> fetchTransactions(VTBFetchRequest request);
-
 
 
     /**

@@ -1,9 +1,14 @@
 package ru.ilyshka.temporal;
 
+import io.temporal.spring.boot.ActivityImpl;
+import io.temporal.spring.boot.WorkflowImpl;
 import io.temporal.workflow.Workflow;
+import io.temporal.workflow.WorkflowInterface;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import ru.ilyshka.temporal.finance.vtb.VTBAUTHWorkflow;
 import ru.ilyshka.temporal.finance.vtb.VTBActivities;
 import ru.ilyshka.temporal.finance.vtb.VTBTxWorkflow;
@@ -23,11 +28,10 @@ import java.util.List;
  * <p>
  * Повторные запросы транзакций происходят по интервалу (scheduled).
  */
-@Component("VTBTxWorkflow")
+@Service
+@Slf4j
 @RequiredArgsConstructor
 public class VTBTxWorkflowImpl implements VTBTxWorkflow {
-    private static final Logger log = Workflow.getLogger(VTBTxWorkflowImpl.class);
-
     private final VTBActivities vtbActivities;
     private final VTBAUTHWorkflow vtbAuthWorkflow;
 

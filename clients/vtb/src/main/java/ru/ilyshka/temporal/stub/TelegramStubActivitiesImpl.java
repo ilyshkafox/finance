@@ -1,5 +1,6 @@
 package ru.ilyshka.temporal.stub;
 
+import io.temporal.spring.boot.ActivityImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -7,6 +8,7 @@ import ru.ilyshka.temporal.notification.TelegramActivities;
 
 @Slf4j
 @Component
+@ActivityImpl(taskQueues = "vtb-tx-tasks")
 @RequiredArgsConstructor
 public class TelegramStubActivitiesImpl implements TelegramActivities {
 
