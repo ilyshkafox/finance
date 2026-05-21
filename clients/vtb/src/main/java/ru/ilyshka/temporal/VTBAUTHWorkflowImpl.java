@@ -1,5 +1,6 @@
 package ru.ilyshka.temporal;
 
+import io.temporal.spring.boot.WorkflowImpl;
 import io.temporal.workflow.Workflow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.util.List;
  */
 @Service
 @Slf4j
+@WorkflowImpl(taskQueues = "vtb")
 @RequiredArgsConstructor
 public class VTBAUTHWorkflowImpl implements VTBAUTHWorkflow {
     @Override

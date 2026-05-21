@@ -8,7 +8,7 @@ import ru.ilyshka.temporal.notification.TelegramActivities;
 
 @Slf4j
 @Component
-@ActivityImpl(taskQueues = "vtb-tx-tasks")
+@ActivityImpl(taskQueues = "vtb")
 @RequiredArgsConstructor
 public class TelegramStubActivitiesImpl implements TelegramActivities {
 

@@ -13,10 +13,6 @@
     <name>temporal-interfaces</name>
     <description>Temporal workflow and activity interfaces library</description>
 
-    <properties>
-        <temporal.version>1.26.2</temporal.version>
-    </properties>
-
     <dependencies>
         <!-- Temporal SDK -->
         <dependency>
@@ -26,12 +22,6 @@
         </dependency>
 
         <!-- Temporal Spring Boot Autoconfigure -->
-        <dependency>
-            <groupId>io.temporal</groupId>
-            <artifactId>temporal-spring-boot-autoconfigure</artifactId>
-            <version>${temporal.version}</version>
-        </dependency>
-
         <!-- Lombok for boilerplate reduction -->
         <dependency>
             <groupId>org.projectlombok</groupId>

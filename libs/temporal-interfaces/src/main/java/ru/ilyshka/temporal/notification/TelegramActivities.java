@@ -1,5 +1,7 @@
 package ru.ilyshka.temporal.notification;
 
+import io.temporal.activity.ActivityInterface;
+import io.temporal.activity.ActivityMethod;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
 import ru.ilyshka.temporal.activity.BaseActivityInterface;
@@ -14,7 +16,7 @@ import ru.ilyshka.temporal.activity.BaseActivityInterface;
         category = "notification",
         taskQueue = "notification-tasks"
 )
-@WorkflowInterface
+@ActivityInterface
 public interface TelegramActivities {
 
     /**
@@ -23,7 +25,7 @@ public interface TelegramActivities {
      * @param userId идентификатор пользователя (Telegram chat_id)
      * @param text   текст сообщения
      */
-    @WorkflowMethod
+    @ActivityMethod
     void sendMessage(String userId, String text);
     
 }

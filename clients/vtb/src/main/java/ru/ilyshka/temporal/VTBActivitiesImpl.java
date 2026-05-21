@@ -24,17 +24,21 @@ import java.util.Map;
  */
 @Service
 @Slf4j
+@ActivityImpl(taskQueues = "vtb")
 @RequiredArgsConstructor
 public class VTBActivitiesImpl implements VTBActivities {
 
     private final ObjectMapper objectMapper;
-    private final VtbAuthService authService;
+//    private final VtbAuthService authService;
     private final VtbDataService dataService;
-    private final TelegramActivities telegramActivities;
+//    private final TelegramActivities telegramActivities;
+
+
 
     @Override
     @SneakyThrows
     public List<String> fetchTransactions(VTBFetchRequest request) {
+        log.info("fetchTransactions");
         List<Map<String, Object>> operations = dataService.getHistoryRaw(request.getStartDate(), request.getEndDate());
 
         // Конвертируем в List<String>

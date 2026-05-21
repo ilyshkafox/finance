@@ -1,20 +1,16 @@
 package ru.ilyshka.temporal;
 
-import io.temporal.spring.boot.ActivityImpl;
+import io.temporal.activity.ActivityOptions;
 import io.temporal.spring.boot.WorkflowImpl;
 import io.temporal.workflow.Workflow;
-import io.temporal.workflow.WorkflowInterface;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
-import ru.ilyshka.temporal.finance.vtb.VTBAUTHWorkflow;
 import ru.ilyshka.temporal.finance.vtb.VTBActivities;
 import ru.ilyshka.temporal.finance.vtb.VTBTxWorkflow;
 import ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException;
 import ru.ilyshka.temporal.finance.vtb.model.VTBFetchRequest;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -28,13 +24,16 @@ import java.util.List;
  * <p>
  * Повторные запросы транзакций происходят по интервалу (scheduled).
  */
-@Service
 @Slf4j
-@RequiredArgsConstructor
+@WorkflowImpl(taskQueues = "vtb")
 public class VTBTxWorkflowImpl implements VTBTxWorkflow {
-    private final VTBActivities vtbActivities;
-    private final VTBAUTHWorkflow vtbAuthWorkflow;
-
+    private final VTBActivities vtbActivities =
+            Workflow.newActivityStub(
+                    VTBActivities.class,
+                    ActivityOptions.newBuilder()
+                            .setStartToCloseTimeout(Duration.ofSeconds(10))
+                            .build()
+            );
 
     @Override
     public List<String> fetchTransactions(VTBFetchRequest request) {
@@ -48,7 +47,7 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
         } catch (VTBAuthException e) {
             log.warn("[VTBTxWorkflow] Ошибка авторизации при получении транзакций: {}", e.getMessage());
             log.info("[VTBTxWorkflow] Запуск процесса авторизации...");
-            vtbAuthWorkflow.authorize();
+//            vtbAuthWorkflow.authorize();
             log.info("[VTBTxWorkflow] Авторизация успешна, повторная попытка получения транзакций...");
             return vtbActivities.fetchTransactions(request);
         } catch (Exception e) {

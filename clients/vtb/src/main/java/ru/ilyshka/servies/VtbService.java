@@ -1,35 +1,45 @@
 package ru.ilyshka.servies;
 
+import io.temporal.api.common.v1.WorkflowExecution;
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import ru.ilyshka.libs.messages.FinanceEventService;
-import ru.ilyshka.libs.messages.dto.HealthCheckMessage;
-
-import java.time.YearMonth;
+import ru.ilyshka.controllers.dto.GetReceipt;
+import ru.ilyshka.temporal.finance.vtb.VTBTxWorkflow;
+import ru.ilyshka.temporal.finance.vtb.model.VTBFetchRequest;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class VtbService {
-    private final VtbDataService dataService;
+    private final WorkflowClient client;
+
+
+//    private final VtbDataService dataService;
 
     @SneakyThrows
-    public void startActions() {
-        log.info("Start Actions...");
+    public void startActions(GetReceipt getReceipt) {
+        VTBTxWorkflow workflow =
+                client.newWorkflowStub(
+                        VTBTxWorkflow.class,
+                        WorkflowOptions.newBuilder().setTaskQueue("vtb").build());
+
+        WorkflowExecution workflowExecution = WorkflowClient.start(workflow::fetchTransactions, VTBFetchRequest.builder()
+                .startDate(getReceipt.from())
+                .endDate(getReceipt.to())
+                .build());
+
 
 //        YearMonth startMonth = YearMonth.of(2023, 10);
-        YearMonth startMonth = YearMonth.of(2026, 4);
-        YearMonth currentMonth = YearMonth.now();
 
-        for (YearMonth month = currentMonth; !month.isBefore(startMonth); month = month.minusMonths(1)) {
-            log.info("Processing month: {}", month);
-            dataService.getHistory(month);
-            int randomNum = (int) (Math.random() * 1000);
-            Thread.sleep(1000 + randomNum);
-        }
+//        log.info("Processing month: {}", month);
+//        dataService.getHistory(month);
+//        int randomNum = (int) (Math.random() * 1000);
+//        Thread.sleep(1000 + randomNum);
+
     }
 
 
