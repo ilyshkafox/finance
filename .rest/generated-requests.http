@@ -1,50 +1,7 @@
-
-###
-POST http://localhost:8080/init-replication/run
+POST http://localhost:8080/api/get
 Content-Type: application/json
 
 {
-  "id": "{{ $random.uuid }}",
-  "from": "JDBC:TEST",
-  "to": "LOG",
-  "query": "SELECT * FROM test_table",
-  "tableTo": "",
-  "threadWriters": 0,
-  "batchSize": 0
+  "from": "2026-05-01",
+  "to": "2026-05-22"
 }
-
-<> 2026-04-01T212358.500.json
-<> 2026-04-01T184648.500.json
-<> 2026-04-01T184246.500.json
-<> 2026-04-01T182735.500.json
-<> 2026-04-01T182503.500.json
-<> 2026-04-01T182423.500.json
-<> 2026-04-01T182216.500.json
-<> 2026-04-01T181820.500.json
-<> 2026-04-01T181735.500.json
-<> 2026-04-01T181640.500.json
-
-###
-POST http://localhost:8080/api/action
-
-<> 2026-05-11T235445.500.json
-<> 2026-04-21T202218.500.json
-
-###
-POST http://localhost:8080/api/action
-
-###
-POST http://localhost:8080/api/action
-
-###
-POST http://localhost:8080/api/qr/start
-
-<> 2026-04-25T015139.200.txt
-<> 2026-04-25T014835.200.txt
-<> 2026-04-25T014542.200.txt
-<> 2026-04-25T014127.200.txt
-
-###
-POST http://localhost:8080/api/qr/start
-
-<> 2026-05-07T001058.200.txt

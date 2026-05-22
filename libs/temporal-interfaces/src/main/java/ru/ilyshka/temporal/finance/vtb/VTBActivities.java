@@ -1,8 +1,7 @@
 package ru.ilyshka.temporal.finance.vtb;
 
 import io.temporal.activity.ActivityInterface;
-import io.temporal.workflow.WorkflowInterface;
-import ru.ilyshka.temporal.activity.BaseActivityInterface;
+import io.temporal.activity.ActivityMethod;
 import ru.ilyshka.temporal.common.BaseActivityOptions;
 import ru.ilyshka.temporal.finance.vtb.model.AuthStatus;
 import ru.ilyshka.temporal.finance.vtb.model.VTBFetchRequest;
@@ -30,7 +29,17 @@ public interface VTBActivities {
      * @return список транзакций
      * @throws ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException если требуется авторизация
      */
+    @ActivityMethod
     List<String> fetchTransactions(VTBFetchRequest request);
+
+    @ActivityMethod
+    String startAuth();
+
+    @ActivityMethod
+    void waitAuth();
+
+    @ActivityMethod
+    AuthStatus getAuthStatus();
 
 
     /**

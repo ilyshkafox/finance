@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.MultiFormatReader;
-import com.google.zxing.Result;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
 import lombok.Getter;
@@ -20,10 +19,12 @@ import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 import ru.ilyshka.configuration.VpbProperties;
+import ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException;
+import ru.ilyshka.temporal.finance.vtb.model.AuthStatus;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -52,16 +53,16 @@ public class VtbAuthService implements AutoCloseable {
     private String lastUrl;
     private String lastScreenshot;
     private final AtomicBoolean qrInProgress = new AtomicBoolean(false);
-    
+
     @Getter
     private String savedAuthToken;
-    
+
     @Getter
     private String savedUserFingerprint;
-    
+
     // Время последней проверки токена (для избежания частых проверок)
     private long lastTokenCheckTime = 0;
-    
+
     // Кэш валидности токена
     private Boolean cachedTokenValid = null;
 
@@ -98,62 +99,49 @@ public class VtbAuthService implements AutoCloseable {
     /**
      * Возвращает true если пользователь авторизован и токен валиден
      */
-    public boolean isAuthorized() {
-        // Если браузер закрыт после успешной авторизации — проверяем токен
-        if (driver == null) {
-            if (savedAuthToken != null) {
-                return isAuthTokenValid();
+    public AuthStatus getAuthStatus() {
+        if (savedAuthToken == null) {
+            if (qrInProgress.get()) {
+                return AuthStatus.PENDING;
+            } else {
+                return AuthStatus.UNAUTHORIZED;
             }
-            return false;
         }
-        // Браузер открыт — проверяем URL
-        try {
-            String fullUrl = driver.getCurrentUrl();
-            return fullUrl.contains("/home") || fullUrl.contains("/dashboard");
-        } catch (Exception e) {
-            log.warn("[AUTH] Ошибка проверки авторизации: {}", e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Проверяет, валиден ли сохраненный JWT токен (не истек ли)
-     */
-    private boolean isAuthTokenValid() {
-        if (savedAuthToken == null) return false;
-        
+        ;
+
+
         // Проверяем кэш (чтобы не декодировать токен на каждый чих)
         if (cachedTokenValid != null && System.currentTimeMillis() - lastTokenCheckTime < TOKEN_VALIDITY_CHECK_INTERVAL) {
-            return cachedTokenValid;
+            return cachedTokenValid ? AuthStatus.AUTHORIZED : AuthStatus.UNAUTHORIZED;
         }
-        
+
         lastTokenCheckTime = System.currentTimeMillis();
-        
+
         try {
             // JWT состоит из 3 частей: header.payload.signature
             String[] parts = savedAuthToken.split("\\.");
             if (parts.length != 3) {
                 log.warn("[TOKEN] Неверный формат JWT токена");
                 cachedTokenValid = false;
-                return false;
+                return AuthStatus.UNAUTHORIZED;
             }
-            
+
             // Декодируем payload (вторая часть)
             String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
             Map<String, Object> claims = MAPPER.readValue(payload, Map.class);
-            
+
             // Проверяем expiration (exp)
             Object expObj = claims.get("exp");
             if (expObj == null) {
                 log.warn("[TOKEN] В токене нет поля exp");
                 cachedTokenValid = false;
-                return false;
+                return AuthStatus.UNAUTHORIZED;
             }
-            
+
             long exp = ((Number) expObj).longValue();
             boolean valid = Instant.now().getEpochSecond() < exp;
             cachedTokenValid = valid;
-            
+
             if (!valid) {
                 long expiredSeconds = Instant.now().getEpochSecond() - exp;
                 log.warn("[TOKEN] Токен истек {} секунд назад", expiredSeconds);
@@ -161,15 +149,15 @@ public class VtbAuthService implements AutoCloseable {
                 long remainingSeconds = exp - Instant.now().getEpochSecond();
                 log.debug("[TOKEN] Токен валиден, осталось {} секунд", remainingSeconds);
             }
-            
-            return valid;
+
+            return valid ? AuthStatus.AUTHORIZED : AuthStatus.UNAUTHORIZED;
         } catch (Exception e) {
             log.error("[TOKEN] Ошибка проверки токена: {}", e.getMessage());
             cachedTokenValid = false;
-            return false;
+            return AuthStatus.UNAUTHORIZED;
         }
     }
-    
+
     /**
      * Сбрасывает кэш валидности токена (вызывается при успешной авторизации)
      */
@@ -196,19 +184,18 @@ public class VtbAuthService implements AutoCloseable {
         }
         // Иначе пытаемся получить из sessionStorage (когда браузер еще открыт)
         if (webStorage == null) {
-            throw new IllegalStateException("WebStorage недоступен. Авторизация завершена, используйте savedAuthToken");
+            throw new VTBAuthException("WebStorage недоступен. Авторизация не завершена.");
         }
         try {
             String authItem = webStorage.getSessionStorage().getItem("@vtb/auth");
             if (authItem == null) {
-                log.warn("[AUTH] Токен не найден в sessionStorage");
-                return null;
+                throw new VTBAuthException("[AUTH] Токен не найден в sessionStorage");
             }
-            Map<String, String> auth = MAPPER.readValue(authItem, new TypeReference<>() {});
+            Map<String, String> auth = MAPPER.readValue(authItem, new TypeReference<>() {
+            });
             return auth.get("idToken");
         } catch (Exception e) {
-            log.error("[AUTH] Ошибка получения токена: {}", e.getMessage());
-            return null;
+            throw new VTBAuthException("[AUTH] Ошибка получения токена: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -257,38 +244,66 @@ public class VtbAuthService implements AutoCloseable {
         Thread.sleep(1000);
 
         log.info("[QR.2] Нажатие кнопки QR входа");
-        try { driver.findElement(By.cssSelector("[data-test-id='auth-by-qr-button']")).click(); }
-        catch (Exception e) { driver.findElement(By.xpath("//button[contains(text(), 'QR')]")).click(); }
+        try {
+            driver.findElement(By.cssSelector("[data-test-id='auth-by-qr-button']")).click();
+        } catch (Exception e) {
+            driver.findElement(By.xpath("//button[contains(text(), 'QR')]")).click();
+        }
         Thread.sleep(1000);
 
         log.info("[QR.3] Ожидание страницы QR-кода");
-        wait.until(d -> { try { String t = d.findElement(By.tagName("main")).getText(); return t.contains("QR"); } catch (Exception e) { return false; } });
+        wait.until(d -> {
+            try {
+                String t = d.findElement(By.tagName("main")).getText();
+                return t.contains("QR");
+            } catch (Exception e) {
+                return false;
+            }
+        });
         log.info("[QR.3] Страница QR-кода загружена");
 
         log.info("[QR.4] Извлечение QR изображения");
         String qrBase64 = extractQrBase64();
-        if (qrBase64 == null) { log.error("[QR.4] Не удалось извлечь QR"); return; }
+        if (qrBase64 == null) {
+            log.error("[QR.4] Не удалось извлечь QR");
+            return;
+        }
         log.debug("[QR.4] QR изображение извлечено, размер: {} символов", qrBase64.length());
 
         log.info("[QR.5] Парсинг QR кода из SVG");
         String qrContent = parseQrFromSvg(qrBase64);
-        if (qrContent == null) { log.error("[QR.5] Не удалось распарсить QR код"); return; }
+        if (qrContent == null) {
+            log.error("[QR.5] Не удалось распарсить QR код");
+            return;
+        }
         log.info("[QR.5] QR код успешно распарсен");
 
         log.info("[QR.6] QR CODE URL: {}", qrContent);
-        notifyService.notifyQrCodeParsed(qrContent);
         qrCodeUrl = qrContent;
     }
 
     private String extractQrBase64() {
         try {
             WebElement img = wait.until(d -> {
-                try { WebElement e = d.findElement(By.cssSelector("img[alt=\"QR-код\"]")); return e.isDisplayed() ? e : null; } catch (Exception ignore) {}
-                try { WebElement e = d.findElement(By.cssSelector("img[src*=\"qr\"]")); return e.isDisplayed() ? e : null; } catch (Exception ignore) {}
+                try {
+                    WebElement e = d.findElement(By.cssSelector("img[alt=\"QR-код\"]"));
+                    return e.isDisplayed() ? e : null;
+                } catch (Exception ignore) {
+                }
+                try {
+                    WebElement e = d.findElement(By.cssSelector("img[src*=\"qr\"]"));
+                    return e.isDisplayed() ? e : null;
+                } catch (Exception ignore) {
+                }
                 return null;
             });
-            if (img != null) { String src = img.getAttribute("src"); return (src != null && src.startsWith("data:image")) ? src : getScreenshot(); }
-        } catch (Exception e) { log.warn("[QR.4] Не удалось найти QR элемент: {}", e.getMessage()); }
+            if (img != null) {
+                String src = img.getAttribute("src");
+                return (src != null && src.startsWith("data:image")) ? src : getScreenshot();
+            }
+        } catch (Exception e) {
+            log.warn("[QR.4] Не удалось найти QR элемент: {}", e.getMessage());
+        }
         return null;
     }
 
@@ -298,22 +313,31 @@ public class VtbAuthService implements AutoCloseable {
             String b64 = qrBase64.contains(",") ? qrBase64.substring(qrBase64.indexOf(",") + 1) : qrBase64;
             byte[] svgBytes = Base64.getDecoder().decode(b64);
             log.debug("[QR.5] SVG размер: {} байт", svgBytes.length);
-            
+
             String svg = new String(svgBytes, "UTF-8");
             Matcher m = PNG_PATTERN.matcher(svg);
-            if (!m.find()) { log.error("[QR.5] PNG не найден в SVG"); return null; }
+            if (!m.find()) {
+                log.error("[QR.5] PNG не найден в SVG");
+                return null;
+            }
             log.debug("[QR.5] Embedded PNG найден, длина base64: {} символов", m.group(1).length());
-            
+
             byte[] pngBytes = Base64.getDecoder().decode(m.group(1));
             log.debug("[QR.5] PNG декодирован: {} байт", pngBytes.length);
-            
+
             BufferedImage png = ImageIO.read(new ByteArrayInputStream(pngBytes));
-            if (png == null) { log.error("[QR.5] PNG не прочитан"); return null; }
+            if (png == null) {
+                log.error("[QR.5] PNG не прочитан");
+                return null;
+            }
             log.debug("[QR.5] PNG прочитан: {}x{}", png.getWidth(), png.getHeight());
 
             BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(png)));
             return new MultiFormatReader().decode(bitmap).getText();
-        } catch (Exception e) { log.error("[QR.5] Ошибка парсинга QR: {}", e.getMessage(), e); return null; }
+        } catch (Exception e) {
+            log.error("[QR.5] Ошибка парсинга QR: {}", e.getMessage(), e);
+            return null;
+        }
     }
 
     @SneakyThrows
@@ -330,7 +354,7 @@ public class VtbAuthService implements AutoCloseable {
             lastScreenshot = getScreenshot();
             if (!url.contains("/login") && !url.contains("/auth")) {
                 log.info("[QR.WAIT] URL изменен - пользователь перешел по ссылке");
-                
+
                 // Получаем и сохраняем OAuth токен
                 String token = extractAuthToken();
                 if (token != null) {
@@ -339,7 +363,7 @@ public class VtbAuthService implements AutoCloseable {
                 } else {
                     log.warn("[AUTH] Не удалось получить OAuth токен");
                 }
-                
+
                 // Сохраняем fingerprint перед закрытием браузера
                 try {
                     String fingerprint = driver.manage().getCookieNamed("USER_FINGERPRINT").getValue();
@@ -350,15 +374,23 @@ public class VtbAuthService implements AutoCloseable {
                 } catch (Exception e) {
                     log.warn("[AUTH] Не удалось сохранить fingerprint: {}", e.getMessage());
                 }
-                
+
                 // Закрываем браузер после успешной авторизации
                 log.info("[AUTH] Закрытие браузера после успешной авторизации");
                 close();
-                
+
                 qrInProgress.set(false);
                 return true;
             }
-            try { String t = driver.findElement(By.tagName("main")).getText(); if (t.contains("Добро пожаловать")) { log.info("[QR.WAIT] Успешный вход обнаружен"); qrInProgress.set(false); return true; } } catch (Exception ignore) {}
+            try {
+                String t = driver.findElement(By.tagName("main")).getText();
+                if (t.contains("Добро пожаловать")) {
+                    log.info("[QR.WAIT] Успешный вход обнаружен");
+                    qrInProgress.set(false);
+                    return true;
+                }
+            } catch (Exception ignore) {
+            }
             Thread.sleep(2000);
         }
         log.warn("[QR.WAIT] Таймаут ожидания QR кода");
@@ -373,7 +405,8 @@ public class VtbAuthService implements AutoCloseable {
             return null;
         }
         try {
-            Map<String, String> auth = MAPPER.readValue(webStorage.getSessionStorage().getItem("@vtb/auth"), new TypeReference<>() {});
+            Map<String, String> auth = MAPPER.readValue(webStorage.getSessionStorage().getItem("@vtb/auth"), new TypeReference<>() {
+            });
             return auth.get("idToken");
         } catch (Exception e) {
             log.warn("[AUTH] Ошибка получения токена: {}", e.getMessage());
@@ -387,7 +420,6 @@ public class VtbAuthService implements AutoCloseable {
             log.info("[QR.HANDLER] Запуск QR авторизации");
             try {
                 startQrLogin();
-                notifyService.notifyQrLoginRequired(qrCodeUrl);
                 lastUrl = driver.getCurrentUrl();
                 lastScreenshot = getScreenshot();
                 new Thread(() -> {
@@ -406,7 +438,9 @@ public class VtbAuthService implements AutoCloseable {
                         log.error("[QR.HANDLER] Ошибка QR авторизации: {}", e.getMessage());
                         cancelQrLogin();
                         notifyService.notifyError("QR failed: " + e.getMessage(), lastUrl, lastScreenshot);
-                    } finally { qrInProgress.set(false); }
+                    } finally {
+                        qrInProgress.set(false);
+                    }
                 }).start();
             } catch (Exception e) {
                 log.error("[QR.HANDLER] Ошибка запуска QR: {}", e.getMessage());

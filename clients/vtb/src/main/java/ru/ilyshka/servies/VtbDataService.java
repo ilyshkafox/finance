@@ -111,7 +111,6 @@ public class VtbDataService {
      */
     @SneakyThrows
     public synchronized List<Map<String, Object>> getHistoryRaw(LocalDate fromDateTime, LocalDate toDateTime) {
-        log.info("getHistoryRaw");
         String authToken = authService.getAuthToken();
         String userFingerprint = authService.getUserFingerprint();
 
