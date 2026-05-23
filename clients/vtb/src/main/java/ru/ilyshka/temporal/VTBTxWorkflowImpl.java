@@ -9,10 +9,8 @@ import ru.ilyshka.temporal.finance.vtb.VTBActivities;
 import ru.ilyshka.temporal.finance.vtb.VTBTxWorkflow;
 import ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException;
 import ru.ilyshka.temporal.finance.vtb.model.AuthStatus;
-import ru.ilyshka.temporal.finance.vtb.model.VTBFetchRequest;
 
 import java.time.Duration;
-import java.util.List;
 
 /**
  * Реализация VTBTxWorkflow.
@@ -28,6 +26,7 @@ import java.util.List;
 @Slf4j
 @WorkflowImpl(taskQueues = "vtb")
 public class VTBTxWorkflowImpl implements VTBTxWorkflow {
+    private boolean approved = false;
     private final VTBActivities vtbActivities =
             Workflow.newActivityStub(
                     VTBActivities.class,
@@ -42,7 +41,29 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
 
 
     @Override
-    public List<String> fetchTransactions(VTBFetchRequest request) {
+    public void sync(boolean approved) {
+        log.info("[VTBTxWorkflow] Запуск синхранизации.");
+
+        if (vtbActivities.getAuthStatus() != AuthStatus.AUTHORIZED) {
+            log.info("[VTBTxWorkflow] Мы не авторизированны в системе...");
+
+
+
+            log.info("[VTBTxWorkflow] Запуск процесса авторизации...");
+            String urlToken = vtbActivities.startAuth();
+            log.info("[VTBTxWorkflow] Получена ссылка для авторизации: {}", urlToken);
+            vtbActivities.waitAuth();
+        }
+
+
+        if (approved || this.approved) {
+            log.info("[VTBTxWorkflow] Требуется полдтверждение пользователя, что он активен.");
+            //TODO: Sent Notify by telegram? or другие каналы.
+            Workflow.await(() -> this.approved);
+            log.info("[VTBTxWorkflow] Полученно потверждение, продолжает синхранизацию.");
+        }
+
+
         String workflowId = Workflow.getInfo().getWorkflowId();
         log.info("[VTBTxWorkflow] Начало получения транзакций, workflow: {}", workflowId);
 
@@ -60,5 +81,11 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
             log.error("[VTBTxWorkflow] Ошибка при получении транзакций: {}", e.getMessage(), e);
             throw e;
         }
+    }
+
+
+    @Override
+    public void userApproved() {
+        this.approved = true;
     }
 }

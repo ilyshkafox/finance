@@ -1,0 +1,26 @@
+app:
+  check-cron: "*/30 * * * * *"
+  action-cron: "*/30 * * * * *"
+  message:
+    clientId: VTB
+# Temporal Configuration
+spring:
+  temporal:
+    namespace: default
+    workersAutoDiscovery:
+      workflow-packages: ru.ilyshka.temporal
+      register-activity-beans: true
+
+    connection:
+      target: localhost:7233
+
+
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: prometheus,temporalworkerinfo
+  datasource:
+
+
+

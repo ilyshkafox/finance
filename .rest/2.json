@@ -2,14 +2,19 @@
   "transactions": [
     {
       "transactionSystemId": "OPENWAY_VTB_CHAIN",
-      "transactionId": "5496303366225"
+      "transactionId": "5496304832425"
+    },
+    {
+      "transactionSystemId": "OPENWAY_VTB_TSID",
+      "transactionId": "32200706131012334600178"
     },
     {
       "transactionSystemId": "OPENWAY_VTB",
-      "transactionId": "613114910002"
+      "transactionId": "613114899716265212"
     }
   ],
-  "rrn": "613114910002",
+  "rrn": "613114899716",
+  "authorizationCode": "265212",
   "card": "220024******6698",
   "cardProductId": "32FD1CE294E94D208E6B6F3976CFE1D4",
   "account": "*3314",
@@ -31,8 +36,8 @@
   "operationName": "pizzaricca",
   "fullOperationName": "pizzaricca",
   "debet": true,
-  "transactionDate": "2026-05-11T17:16:54.000",
-  "processedDate": "2026-05-11T17:16:54.000",
+  "transactionDate": "2026-05-11T17:17:26.000",
+  "processedDate": "2026-05-13T10:20:35.000",
   "operationAmount": {
     "currency": "RUB",
     "sum": 2040.0
@@ -41,17 +46,20 @@
     "currency": "RUB",
     "sum": 2040.0
   },
-  "isHold": true,
-  "status": "Declined",
-  "eventTime": "2026-05-11T17:16:54.000",
+  "isHold": false,
+  "bonus": {
+    "id": "CashBack",
+    "name": "Рубли",
+    "unitsDescription": "Р",
+    "amount": 0.0,
+    "isAccrued": true
+  },
+  "status": "Processed",
+  "eventTime": "2026-05-11T17:17:26.000",
   "properties": [
     {
-      "key": "chainId",
-      "value": "5496303366225"
-    },
-    {
       "key": "operationIdMain",
-      "value": "A5496303366225G8219064125"
+      "value": "M7458305043425G8219064125"
     },
     {
       "key": "acquirerId",
@@ -59,11 +67,7 @@
     },
     {
       "key": "resultCode",
-      "value": "54"
-    },
-    {
-      "key": "terminalId",
-      "value": "25349094"
+      "value": "0"
     },
     {
       "key": "merchantId",
@@ -71,33 +75,85 @@
     },
     {
       "key": "operationId",
-      "value": "5496303366225"
+      "value": "5506512660025"
     },
     {
       "key": "integrationSource_STREAMING_OPENWAY_VTB",
-      "value": "5496303366225"
-    },
-    {
-      "key": "transactionTypeCode",
-      "value": "R1"
+      "value": "5496304832425"
     },
     {
       "key": "integrationSource_OPENWAY_VTB",
-      "value": "5496303366225"
+      "value": "5496304832425"
+    },
+    {
+      "key": "includeInPos",
+      "value": "1"
     },
     {
       "key": "terminalCity",
       "value": "Nizhniy Novgo"
     },
     {
+      "key": "totalBonusAmt",
+      "value": "0"
+    },
+    {
+      "key": "actionType",
+      "value": "Authorization"
+    },
+    {
+      "key": "strimmingTimestamp",
+      "value": "1778509052310"
+    },
+    {
+      "key": "totalRate",
+      "value": "0"
+    },
+    {
+      "key": "chainId",
+      "value": "5496304832425"
+    },
+    {
+      "key": "terminalId",
+      "value": "25349094"
+    },
+    {
+      "key": "bonusAmt",
+      "value": "0"
+    },
+    {
+      "key": "bonus.bonusBalanceAmount",
+      "value": "0"
+    },
+    {
+      "key": "transactionType",
+      "value": "DT"
+    },
+    {
+      "key": "transactionTypeCode",
+      "value": "R1"
+    },
+    {
+      "key": "externalReference",
+      "value": "32200706131012334600178"
+    },
+    {
       "key": "terminalCountry",
       "value": "RUS"
+    },
+    {
+      "key": "status",
+      "value": "Undefined"
+    },
+    {
+      "key": "terminalAddress",
+      "value": "Germana Lopatina, 8"
     }
   ],
-  "operationDate": "2026-05-11T17:16:54.000",
+  "operationDate": "2026-05-11T17:17:26.000",
   "operationCode": "R1",
-  "chainId": "ae48b059-027e-4822-8eb4-89761c432a8a",
-  "operationId": "8f8b3b0e-5ce9-43a5-8104-42771df645bd",
-  "internalId": "5496303366225",
+  "chainId": "a49c2754-b5de-4377-956c-a7fc1756ff5e",
+  "operationId": "3d00da36-464a-4026-8286-11c4d097165f",
+  "internalId": "5496304832425",
   "operationType": "Оплата товаров и услуг"
 }

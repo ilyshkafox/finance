@@ -31,7 +31,6 @@ public class VTBTxTest {
     private static final int TEMPORAL_PORT = 30376;
 
     public static void main(String[] args) {
-        log.info("=== Тест VTBTxWorkflow ===");
         log.info("Подключение к Temporal Server: {}:{}", TEMPORAL_HOST, TEMPORAL_PORT);
 
         WorkflowServiceStubs service = null;

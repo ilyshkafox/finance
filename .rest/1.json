@@ -1,147 +1,144 @@
 {
   "transactions": [
     {
-      "transactionSystemId": "OPENWAY_VTB_CHAIN",
-      "transactionId": "5496304832425"
-    },
-    {
-      "transactionSystemId": "OPENWAY_VTB",
-      "transactionId": "613114899716265212"
+      "transactionSystemId": "PPRS",
+      "transactionId": "019de06c-4c29-7dea-8dbd-df68d02d047a"
     }
   ],
-  "rrn": "613114899716",
-  "authorizationCode": "265212",
-  "card": "220024******6698",
-  "cardProductId": "32FD1CE294E94D208E6B6F3976CFE1D4",
-  "account": "*3314",
-  "accountProductId": "162A7B0CD0304CC3A00DB1B64451D612",
-  "merchant": {
-    "mcc": "5811",
-    "title": "pizzaricca",
-    "originalName": "pizzaricca"
-  },
+  "account": "*0502",
+  "accountProductId": "18B9961E9B6C43CDAD48E6CE0FA163FC",
   "parentCategory": {
-    "id": 11,
-    "logo": "restaurants_category",
-    "name": "Кафе и рестораны",
+    "id": 101,
+    "logo": "between_accounts_category",
+    "name": "Между счетами",
     "colour": {
-      "light": "#ff527d",
-      "dark": "#ff527d"
+      "light": "#0663ef",
+      "dark": "#0663ef"
     }
   },
-  "operationName": "pizzaricca",
-  "fullOperationName": "pizzaricca",
+  "operationName": "Между своими счетами",
+  "fullOperationName": "Перечисление средств на счет N 40817810442506023314 от 01.05.2026 (Мослов Илья Петрович)со счета N 40817810042507030502. 24452.30 RUB. НДС не облагается.",
   "debet": true,
-  "transactionDate": "2026-05-11T17:17:26.000",
-  "processedDate": "2026-05-11T17:17:26.000",
+  "transactionDate": "2026-05-01T01:04:47.978",
+  "processedDate": "2026-05-01T01:04:47.899",
   "operationAmount": {
     "currency": "RUB",
-    "sum": 2040.0
+    "sum": 24452.3
   },
   "transactionAmount": {
     "currency": "RUB",
-    "sum": 2040.0
+    "sum": 24452.3
   },
-  "isHold": true,
-  "bonus": {
-    "id": "CashBack",
-    "name": "Рубли",
-    "unitsDescription": "Р",
-    "amount": 0.0,
-    "isAccrued": true
-  },
-  "status": "Active",
-  "eventTime": "2026-05-11T17:17:26.000",
+  "isHold": false,
+  "status": "Processed",
+  "eventTime": "2026-05-01T01:04:47.017",
   "properties": [
     {
-      "key": "operationIdMain",
-      "value": "A5496304832425G8219064125"
+      "key": "sourceSystem",
+      "value": "TRNS"
     },
     {
-      "key": "acquirerId",
-      "value": "70802007001"
+      "key": "documentId",
+      "value": "826734"
     },
     {
-      "key": "resultCode",
-      "value": "0"
+      "key": "claimOperationType",
+      "value": "Перевод"
     },
     {
-      "key": "merchantId",
-      "value": "200000001293892"
+      "key": "bic",
+      "value": "043601968"
     },
     {
-      "key": "operationId",
-      "value": "5496304832425"
+      "key": "nds",
+      "value": "Ндс не облагается"
     },
     {
-      "key": "integrationSource_STREAMING_OPENWAY_VTB",
-      "value": "5496304832425"
+      "key": "accountNumber",
+      "value": "40817810442506023314"
     },
     {
-      "key": "integrationSource_OPENWAY_VTB",
-      "value": "5496304832425"
+      "key": "productInstanceId",
+      "value": "214dc8d7-e963-45fc-ae0c-492cc859c39a"
     },
     {
-      "key": "includeInPos",
-      "value": "1"
+      "key": "interactionChannel",
+      "value": "SYSTEM"
     },
     {
-      "key": "terminalCity",
-      "value": "Nizhniy Novgo"
+      "key": "integrationSource_STREAMING_1609_PPRS",
+      "value": "019de06c-4c29-7dea-8dbd-df68d02d047a"
     },
     {
-      "key": "totalBonusAmt",
-      "value": "0"
+      "key": "claimOperationName",
+      "value": "Перевод между своими счетами"
     },
     {
-      "key": "actionType",
-      "value": "Authorization"
+      "key": "businessDate",
+      "value": "2026-05-01"
     },
     {
-      "key": "strimmingTimestamp",
-      "value": "1778509052310"
+      "key": "sourceProductId",
+      "value": "18B9961E9B6C43CDAD48E6CE0FA163FC"
     },
     {
-      "key": "totalRate",
-      "value": "0"
+      "key": "paymentReceiver",
+      "value": "М**** ***** *****"
     },
     {
-      "key": "chainId",
-      "value": "5496304832425"
+      "key": "executionTime",
+      "value": "2026-05-01T01:04:47.496"
     },
     {
-      "key": "terminalId",
-      "value": "25349094"
+      "key": "vkusCode",
+      "value": "1387.0000.0001"
     },
     {
-      "key": "bonusAmt",
-      "value": "0"
+      "key": "targetProductId",
+      "value": "162A7B0CD0304CC3A00DB1B64451D612"
     },
     {
-      "key": "bonus.bonusBalanceAmount",
-      "value": "0"
+      "key": "ProductInstanceRegisterId",
+      "value": "019367ba-4c58-7abb-99c2-873015cebb54"
     },
     {
-      "key": "transactionType",
-      "value": "DT"
+      "key": "accountCorrNumber",
+      "value": "30101810422023601968"
     },
     {
-      "key": "transactionTypeCode",
-      "value": "R1"
+      "key": "createDate",
+      "value": "2026-05-01T01:04:47.017"
     },
     {
-      "key": "terminalCountry",
-      "value": "RUS"
+      "key": "valueDate",
+      "value": "2026-05-01"
     },
     {
-      "key": "status",
-      "value": "Undefined"
+      "key": "integrationSource_RetMoneyOrderSBOS",
+      "value": "4ca2bb1e-a085-4202-92e6-ed6f8dab56f4"
+    },
+    {
+      "key": "tsId",
+      "value": "TS.TRNA17775866868871FQVQ"
+    },
+    {
+      "key": "spmCheckResult",
+      "value": "ALLOW"
+    },
+    {
+      "key": "bankName",
+      "value": "Филиал № 6318 Банка ВТБ (публичное акционерное общество) в г. Самаре"
     }
   ],
-  "operationDate": "2026-05-11T17:17:26.000",
-  "operationCode": "R1",
-  "chainId": "9933707f-e950-4667-bc06-fd94e0a7c63a",
-  "operationId": "caba5fce-5127-4b34-9cea-a37a15de0b83",
-  "internalId": "5496304832425",
-  "operationType": "Оплата товаров и услуг"
+  "template": {
+    "list": "transferOwn.list",
+    "view": "transferOwn.view",
+    "receipt": "PMNT-ACCEPTANCE-REQUISITES-RECEIPT"
+  },
+  "operationDate": "2026-05-01T01:04:47.017",
+  "operationCode": "3154",
+  "chainId": "24cad6c3-0f91-4ff8-a26a-c69f7aa3b156",
+  "operationId": "17cd796e-9208-40af-84e8-9ed1f6874b93",
+  "internalId": "4ca2bb1e-a085-4202-92e6-ed6f8dab56f4",
+  "operationType": "Между своими счетами"
 }
