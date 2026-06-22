@@ -18,6 +18,7 @@
         <module>clients</module>
         <module>core</module>
         <module>vtb-stub</module>
+        <module>module-core-ledger</module>
     </modules>
 
     <packaging>pom</packaging>

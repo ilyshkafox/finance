@@ -1,10 +1,13 @@
 package ru.ilyshka;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -17,12 +20,14 @@ public class VtbJsonToCsvConverter {
         Path inputPath = Paths.get(inputDir);
         Path outputDir = inputPath;
 
-        if (!Files.exists(inputPath)) {
-            System.err.println("Папка не существует: " + inputPath);
-            return;
-        }
+//        if (!Files.exists(inputPath)) {
+//            System.err.println("Папка не существует: " + inputPath);
+//            return;
+//        }
 
-        List<Path> jsonFiles = new ArrayList<>();
+        List<Path> jsonFiles = Arrays.asList(
+                Paths.get("E:\\Данные\\input.json")
+        );
 //        if (Files.isDirectory(inputPath)) {
 //            try (DirectoryStream<Path> stream = Files.newDirectoryStream(inputPath, "*.json")) {
 //                stream.forEach(jsonFiles::add);
@@ -31,7 +36,7 @@ public class VtbJsonToCsvConverter {
 //            jsonFiles.add(inputPath);
 //        }
 
-        jsonFiles.add(inputPath.resolve("2026-05.json"));
+//        jsonFiles.add(inputPath.resolve("2026-05.json"));
 //        jsonFiles.add(inputPath.resolve("2026-04.json"));
 
         if (jsonFiles.isEmpty()) {
@@ -71,7 +76,7 @@ public class VtbJsonToCsvConverter {
 
             List<JsonNode> operations = new ArrayList<>();
 
-            if("Declined".equalsIgnoreCase(root.get("status").asText())){
+            if ("Declined".equalsIgnoreCase(root.get("status").asText())) {
                 continue;
             }
 
@@ -176,10 +181,16 @@ public class VtbJsonToCsvConverter {
                 if (value.isEmpty()) continue;
 
                 switch (key) {
-                    case "ExternalFIO": externalFio = value; break;
+                    case "ExternalFIO":
+                        externalFio = value;
+                        break;
                     case "PhoneNumberF":
-                    case "PhoneNumber": phone = value; break;
-                    case "FPSBankName": bankName = value; break;
+                    case "PhoneNumber":
+                        phone = value;
+                        break;
+                    case "FPSBankName":
+                        bankName = value;
+                        break;
                 }
             }
         }

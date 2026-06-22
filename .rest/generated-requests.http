@@ -1,7 +1,3 @@
-POST http://localhost:8080/api/get
+POST http://localhost:8080/api/sync
 Content-Type: application/json
 
-{
-  "from": "2026-05-01",
-  "to": "2026-05-22"
-}

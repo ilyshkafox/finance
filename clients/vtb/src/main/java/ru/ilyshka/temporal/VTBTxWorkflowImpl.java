@@ -9,8 +9,15 @@ import ru.ilyshka.temporal.finance.vtb.VTBActivities;
 import ru.ilyshka.temporal.finance.vtb.VTBTxWorkflow;
 import ru.ilyshka.temporal.finance.vtb.exception.VTBAuthException;
 import ru.ilyshka.temporal.finance.vtb.model.AuthStatus;
+import ru.ilyshka.temporal.finance.vtb.model.VTBFetchRequest;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Реализация VTBTxWorkflow.
@@ -48,7 +55,6 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
             log.info("[VTBTxWorkflow] Мы не авторизированны в системе...");
 
 
-
             log.info("[VTBTxWorkflow] Запуск процесса авторизации...");
             String urlToken = vtbActivities.startAuth();
             log.info("[VTBTxWorkflow] Получена ссылка для авторизации: {}", urlToken);
@@ -56,12 +62,12 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
         }
 
 
-        if (approved || this.approved) {
-            log.info("[VTBTxWorkflow] Требуется полдтверждение пользователя, что он активен.");
-            //TODO: Sent Notify by telegram? or другие каналы.
-            Workflow.await(() -> this.approved);
-            log.info("[VTBTxWorkflow] Полученно потверждение, продолжает синхранизацию.");
-        }
+//        if (approved || this.approved) {
+//            log.info("[VTBTxWorkflow] Требуется полдтверждение пользователя, что он активен.");
+//            //TODO: Sent Notify by telegram? or другие каналы.
+//            Workflow.await(() -> this.approved);
+//            log.info("[VTBTxWorkflow] Полученно потверждение, продолжает синхранизацию.");
+//        }
 
 
         String workflowId = Workflow.getInfo().getWorkflowId();
@@ -73,13 +79,26 @@ public class VTBTxWorkflowImpl implements VTBTxWorkflow {
             log.info("[VTBTxWorkflow] Получена ссылка для авторизации: {}", urlToken);
             vtbActivities.waitAuth();
         }
-
+        List<String> strings;
         try {
             log.info("[VTBTxWorkflow] Попытка получить транзакции...");
-            return vtbActivities.fetchTransactions(request);
+            strings = vtbActivities.fetchTransactions(VTBFetchRequest.builder()
+                    .startDate(LocalDate.of(2026, 05, 14))
+                    .endDate(LocalDate.now())
+                    .build());
+
+
         } catch (Exception e) {
             log.error("[VTBTxWorkflow] Ошибка при получении транзакций: {}", e.getMessage(), e);
             throw e;
+        }
+
+        Path path = Paths.get("E:\\Данные\\input.json");
+
+        try {
+            Files.write(path, strings);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
